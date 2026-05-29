@@ -12,7 +12,8 @@ calls at runtime, ever.** See "Offline guarantee" below.
 
 ## Commands
 
-Dev runs on macOS or Linux. Distribution target is Windows — see "Packaging".
+Dev runs on macOS or Linux. Distribution targets are Windows (primary) and
+macOS (secondary, added for one user). See "Packaging".
 
 ```bash
 # Run the app during dev
@@ -29,9 +30,12 @@ ruff format .                   # OR: black .   [TODO: confirm which]
 pip install -r requirements.txt
 ```
 
-* `START_HERE.bat` (activate venv, launch Streamlit, open browser) and `setup_once.bat`
-  (one-time venv setup per PC) are **Windows-only** and won't run on the dev machine.
-* Run them only in the Windows VM, not on Mac/Linux.
+* `START_HERE.bat` + `setup_once.bat` are **Windows-only**. Run them only in
+  the Windows VM, not on a Mac/Linux dev machine.
+* `START_HERE.command` + `setup_once.command` are **macOS-only** equivalents
+  (double-clickable from Finder). They share the same offline / vendored-model
+  guarantees as the `.bat` files. Test on a real Mac before relying on them
+  for distribution.
 
 ---
 

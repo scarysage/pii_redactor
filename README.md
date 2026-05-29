@@ -24,6 +24,8 @@ human review screen before download.
 | `.streamlit/config.toml`   | Disables telemetry, binds Streamlit to `127.0.0.1`                   |
 | `setup_once.bat`           | Windows one-time setup (creates venv, installs deps)                 |
 | `START_HERE.bat`           | Windows launcher (activates venv, opens browser to the app)          |
+| `setup_once.command`       | macOS one-time setup (double-clickable from Finder)                  |
+| `START_HERE.command`       | macOS launcher (double-clickable from Finder)                        |
 | `requirements.txt`         | Pinned dependencies                                                  |
 | `tests/`                   | pytest suite (31 tests, ~3 s)                                        |
 | `CLAUDE.md`                | Source of truth for design decisions and scope                       |
@@ -104,12 +106,21 @@ Synthetic data only. See [`tests/fixtures/README.md`](tests/fixtures/README.md).
 - `setup_once.bat` aborts if the vendored model is missing rather than fetching it.
 - `requirements.txt` is pinned and minimal.
 
-### 6. Windows packaging (built, **not yet Windows-validated**)
+### 6. Packaging — Windows (primary) + macOS (secondary)
 
-- `setup_once.bat` — anchors to its own directory (not CWD), finds Python via `py -3` or `python`, creates `.venv\`, installs `requirements.txt`. Refuses to run if the vendored model is missing.
-- `START_HERE.bat` — anchors to its own directory, opens browser to `http://127.0.0.1:8501`, runs Streamlit from the venv.
+Both platforms share the same logic: script-dir anchoring, vendored-model
+presence check, venv creation, pinned-deps install, browser auto-open at
+launch. Neither downloads the spaCy model — it must ship in the zip.
 
-> ⚠️ Per CLAUDE.md's packaging test gate: these scripts have only been written, not run on a Windows VM. They must be validated on Windows before being relied on for distribution.
+**Windows**
+- `setup_once.bat` — finds Python via `py -3` or `python`, creates `.venv\`, installs `requirements.txt`. Refuses to run if the vendored model is missing.
+- `START_HERE.bat` — runs Streamlit from the venv, opens the default browser.
+
+**macOS**
+- `setup_once.command` — finds `python3` (Homebrew or python.org), enforces Python 3.10+, creates `.venv/`, installs `requirements.txt`. Refuses to run if the vendored model is missing.
+- `START_HERE.command` — runs Streamlit from the venv, opens the default browser via `open`.
+
+> ⚠️ Per CLAUDE.md's packaging test gate: these scripts have been written but **not yet validated on real Windows or macOS hardware**. Required before relying on them for distribution.
 
 ---
 
@@ -133,12 +144,20 @@ python3 -m venv .venv
 It is *never* run on a distributed installation; the Windows IT path gets
 the model pre-vendored inside the distribution zip.
 
-## Running on Windows (target)
+## Running on Windows (primary distribution target)
 
 1. Unzip to a **permanent** location — `C:\pii-redactor\` recommended. *Not* Downloads or a temp folder.
 2. If Windows blocks the `.bat` files (Mark of the Web), right-click → Properties → tick "Unblock".
 3. Double-click `setup_once.bat` (once per PC).
 4. Double-click `START_HERE.bat` to launch.
+
+## Running on macOS (secondary)
+
+1. Unzip to a **permanent** location — `~/Applications/pii-redactor/` or `~/Documents/pii-redactor/` works. *Not* Downloads.
+2. The first time you double-click a `.command` file, macOS Gatekeeper will block it ("cannot be opened because the developer cannot be verified"). Right-click the file → **Open** → click **Open** in the dialog. After that, normal double-click works.
+3. Double-click `setup_once.command` (once per Mac).
+4. Double-click `START_HERE.command` to launch.
+5. Requires Python 3.10+ installed. If you don't have it: `brew install python@3.12` or download from [python.org/downloads](https://www.python.org/downloads/).
 
 ---
 
