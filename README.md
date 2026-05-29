@@ -14,7 +14,9 @@ human review screen before download.
 
 | File / folder              | Role                                                                 |
 | -------------------------- | -------------------------------------------------------------------- |
-| `recognizers.py`           | Custom Presidio regex recognizers (EIN, routing, account, client ID) |
+| `recognizers.py`           | Custom Presidio regex recognizers (EIN, routing, account, names)     |
+| `firm_config.py`           | **The firm edits this** — `FIRM_NAMES` and `ALWAYS_REDACT` lists     |
+| `CUSTOMIZING.md`           | Plain-language guide for the firm to edit `firm_config.py`           |
 | `redactor.py`              | Presidio analyzer + anonymizer; loads vendored spaCy model           |
 | `extractors.py`            | File → redacted file pipeline for `.txt`, `.pdf`, `.docx`, `.xlsx`   |
 | `app.py`                   | Streamlit UI: upload → auto-redact → review → download               |
@@ -39,11 +41,18 @@ Custom regex recognizers with context-word boosting:
 | `US_EIN`           | `NN-NNNNNNN`                     | Dashed form only (undashed = SSN-shape) |
 | `US_BANK_ROUTING`  | 9 digits                         | Leans on context: routing/aba/wire/...  |
 | `US_BANK_ACCOUNT`  | 6–17 digits                      | Loose — context-dependent               |
-| `CLIENT_ID`        | `[A-Z]{3}-\d{4,6}` (e.g. ABC-123)| Firm-specific format — **confirm**      |
+| `PERSON` (firm)    | Alternation over `FIRM_NAMES`    | Strassler, Herbstman — see `firm_config.py` |
+| `REDACTED` (firm)  | Alternation over `ALWAYS_REDACT` | Empty by default; firm-editable         |
 
 Plus Presidio's built-in recognizers for `US_SSN`, `EMAIL_ADDRESS`,
 `PHONE_NUMBER`, `PERSON`, `CREDIT_CARD`, `US_ITIN`, `LOCATION`, `DATE_TIME`,
 `IBAN_CODE`, `US_PASSPORT`, `US_DRIVER_LICENSE`.
+
+**Firm-editable lists** live in `firm_config.py`:
+- `FIRM_NAMES` — names the language model misses. Currently: `Strassler`, `Herbstman`. Matched case-insensitively, whole-word, tagged `PERSON`.
+- `ALWAYS_REDACT` — literal strings to always strip (account numbers, project codes, etc.). Empty by default, tagged `REDACTED`.
+
+See [`CUSTOMIZING.md`](CUSTOMIZING.md) for the plain-language guide we hand the firm.
 
 Threshold for surfacing a finding: `0.35` (empirical — low enough to catch our
 context-boosted custom recognizers, high enough to drop noise).
@@ -107,12 +116,10 @@ Synthetic data only. See [`tests/fixtures/README.md`](tests/fixtures/README.md).
 ## Running the app (dev: macOS / Linux)
 
 ```bash
-# One-time
+# One-time after `git clone`
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-# Vendor the spaCy model (one-time dev setup; not at runtime)
-.venv/bin/python -m spacy download en_core_web_lg
-# Then copy the model data into ./en_core_web_lg/ (see CLAUDE.md offline guarantee)
+.venv/bin/python scripts/vendor_model.py   # downloads + copies the spaCy model into ./en_core_web_lg/
 
 # Run the app
 .venv/bin/streamlit run app.py
@@ -121,6 +128,10 @@ python3 -m venv .venv
 # Tests
 .venv/bin/python -m pytest -q
 ```
+
+`scripts/vendor_model.py` is **dev-only** — it pulls the model from PyPI.
+It is *never* run on a distributed installation; the Windows IT path gets
+the model pre-vendored inside the distribution zip.
 
 ## Running on Windows (target)
 
@@ -148,10 +159,12 @@ Batch processing, audit logs, reversible tokens, multi-user/server modes, any ne
 
 These are marked in CLAUDE.md and still need a real answer from the firm/maintainer:
 
-- Confirm the exact `CLIENT_ID` format used internally (currently assuming `ABC-12345`).
-- Confirm the exact bold + red hex (currently `#C00000`).
+- ~~Confirm the exact bold + red hex~~ — **`#C00000` confirmed.**
+- ~~Decide whether `en_core_web_lg/` is tracked in git~~ — **out-of-band: ships in the distribution zip; `.gitignore`d in the repo.** `scripts/vendor_model.py` does the dev fetch.
+- ~~Add firm-specific names that spaCy misses~~ — **Strassler & Herbstman added** to `firm_config.FIRM_NAMES`.
+- ~~Confirm the exact `CLIENT_ID` format~~ — **no separate client ID concept; tax IDs only, already covered.** `CLIENT_ID` recognizer removed.
+- ~~Make customization easy for the firm~~ — **`firm_config.py` + `CUSTOMIZING.md` added.** Firm edits two lists; no code changes needed.
 - Confirm fixtures directory layout (currently `tests/fixtures/`).
-- Decide whether `en_core_web_lg/` is tracked in git (LFS) or distributed out-of-band — currently *not* `.gitignore`d, so it would be committed as-is.
 - Confirm git workflow (branching, commit message style).
 - Confirm `RUNBOOK.md` ownership.
 

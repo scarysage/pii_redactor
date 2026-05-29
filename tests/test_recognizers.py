@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import re
 
+from firm_config import FIRM_NAMES
 from recognizers import (
     BANK_ACCT_PATTERN,
-    CLIENT_ID_PATTERN,
     EIN_PATTERN,
     ROUTING_PATTERN,
+    build_always_redact_recognizer,
+    build_firm_names_recognizer,
 )
 
 
@@ -56,13 +58,42 @@ class TestBankAcctRegex:
         assert _matches(BANK_ACCT_PATTERN, "12345") == []
 
 
-class TestClientIdRegex:
-    def test_matches_canonical(self):
-        assert "ABC-12345" in _matches(CLIENT_ID_PATTERN, "Client ABC-12345 owes")
+class TestFirmNamesRecognizer:
+    """The firm-names deny-list catches names spaCy NER routinely misses."""
 
-    def test_rejects_lowercase(self):
-        assert _matches(CLIENT_ID_PATTERN, "abc-12345") == []
+    def test_configured_names_present(self):
+        # Sanity: the firm explicitly asked for these to always be caught.
+        assert "Strassler" in FIRM_NAMES
+        assert "Herbstman" in FIRM_NAMES
 
-    def test_rejects_wrong_letter_count(self):
-        assert _matches(CLIENT_ID_PATTERN, "AB-12345") == []
-        assert _matches(CLIENT_ID_PATTERN, "ABCD-12345") == []
+    def test_recognizer_builds(self):
+        rec = build_firm_names_recognizer()
+        assert rec is not None
+        assert rec.supported_entities == ["PERSON"]
+
+    def test_regex_matches_case_variants(self):
+        rec = build_firm_names_recognizer()
+        pattern = rec.patterns[0].regex
+        # Presidio compiles patterns with re.IGNORECASE at runtime, so we
+        # pass the flag explicitly here too.
+        for variant in ("Strassler", "STRASSLER", "strassler",
+                        "Herbstman", "HERBSTMAN", "herbstman"):
+            assert re.search(pattern, variant, flags=re.IGNORECASE), variant
+
+    def test_regex_respects_word_boundaries(self):
+        rec = build_firm_names_recognizer()
+        pattern = rec.patterns[0].regex
+        assert not re.search(
+            pattern, "preStrasslerSuffix", flags=re.IGNORECASE
+        )
+
+
+class TestAlwaysRedactRecognizer:
+    """The ALWAYS_REDACT list is empty by default; the recognizer skips cleanly."""
+
+    def test_empty_list_returns_none(self):
+        # Default firm_config.ALWAYS_REDACT is empty -> recognizer is skipped.
+        # If a maintainer ever populates it, the all_custom_recognizers()
+        # wiring will pick it up automatically.
+        rec = build_always_redact_recognizer()
+        assert rec is None

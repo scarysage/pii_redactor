@@ -18,7 +18,7 @@ from redactor import analyze, apply_decisions, redact
 SAMPLE = (
     "Jane Doe (jane.doe@example.com) called from 415-555-0199. "
     "Her SSN is 456-78-9012 and EIN 12-3456789. "
-    "Client ID ABC-12345. Routing: 021000021."
+    "Routing: 021000021."
 )
 
 
@@ -51,10 +51,6 @@ class TestRedactCoreEntities:
     def test_ein_detected(self, red_result):
         _, findings = red_result
         assert "US_EIN" in _types(findings)
-
-    def test_client_id_detected(self, red_result):
-        _, findings = red_result
-        assert "CLIENT_ID" in _types(findings)
 
     def test_routing_detected(self, red_result):
         _, findings = red_result
@@ -98,6 +94,36 @@ class TestApplyDecisions:
         findings = analyze(SAMPLE)
         full, _ = redact(SAMPLE)
         assert apply_decisions(SAMPLE, findings, keep_indices=[]) == full
+
+
+class TestFirmNameEndToEnd:
+    """The firm-names recognizer is wired through the full Presidio pipeline."""
+
+    def test_strassler_redacted_even_without_context(self):
+        # Bare name in a low-context sentence: spaCy NER may or may not catch
+        # this on its own. Our deny-list guarantees it does.
+        red, findings = redact("Strassler called yesterday.")
+        assert "Strassler" not in red
+        assert any(f.entity_type == "PERSON" for f in findings)
+
+    def test_herbstman_redacted_even_without_context(self):
+        red, findings = redact("Herbstman signed off on the return.")
+        assert "Herbstman" not in red
+        assert any(f.entity_type == "PERSON" for f in findings)
+
+    def test_strassler_redacted_lowercase(self):
+        red, _ = redact("Spoke with strassler about the K-1.")
+        assert "strassler" not in red
+        assert "STRASSLER" not in red
+
+    def test_other_capitalized_words_not_overflagged(self):
+        # Sanity: the recognizer is name-specific, not a generic "any
+        # capitalized word" trigger. Avoid words spaCy interprets as
+        # date/location/org (e.g. weekday names, city names) -- those are
+        # *correctly* flagged by other recognizers and unrelated to this test.
+        red, _ = redact("The meeting covered Receipts and Reconciliations.")
+        for word in ("Receipts", "Reconciliations"):
+            assert word in red
 
 
 class TestEmptyInput:

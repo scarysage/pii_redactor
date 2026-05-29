@@ -56,7 +56,7 @@ DEFAULT_ENTITIES = [
     "US_EIN",
     "US_BANK_ROUTING",
     "US_BANK_ACCOUNT",
-    "CLIENT_ID",
+    "REDACTED",  # used by the firm's ALWAYS_REDACT list in firm_config.py
 ]
 
 # Anything below this score is dropped before the user ever sees it. Presidio's
