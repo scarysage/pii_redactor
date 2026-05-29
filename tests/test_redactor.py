@@ -126,6 +126,47 @@ class TestFirmNameEndToEnd:
             assert word in red
 
 
+class TestAddressDetection:
+    """End-to-end address redaction through the full Presidio pipeline."""
+
+    def test_street_address_redacted(self):
+        red, findings = redact("She lives at 123 Main Street, near the park.")
+        assert "123 Main Street" not in red
+        assert "<LOCATION>" in red
+        assert any(f.entity_type == "LOCATION" for f in findings)
+
+    def test_apartment_address_redacted(self):
+        red, _ = redact("Mailing address: 456 Oak Avenue.")
+        assert "456 Oak Avenue" not in red
+        assert "<LOCATION>" in red
+
+    def test_directional_address_redacted(self):
+        red, _ = redact("Office at 100 West 42nd Street.")
+        assert "100 West 42nd Street" not in red
+
+    def test_po_box_redacted(self):
+        red, _ = redact("Send check to P.O. Box 1234 in Brooklyn.")
+        assert "P.O. Box 1234" not in red
+        assert "<LOCATION>" in red
+
+    def test_address_recognizer_does_not_over_fire(self):
+        # The classic over-matching trap for an address regex: "5 Year Plan",
+        # "100 Days of Code". The point of this test is to make sure OUR
+        # address pattern (LOCATION tag from UsAddressRecognizer) does not
+        # catch these. spaCy may independently flag "5 Year Plan" as
+        # DATE_TIME -- that is a separate detector and a separate concern.
+        for phrase in ("Our 5 Year Plan was approved.",
+                       "100 Days of Code is a challenge."):
+            _, findings = redact(phrase)
+            location_findings = [
+                f for f in findings if f.entity_type == "LOCATION"
+            ]
+            for f in location_findings:
+                assert "Plan" not in f.text and "Days" not in f.text, (
+                    f"Address recognizer over-fired: {f.text!r} in {phrase!r}"
+                )
+
+
 class TestFirstNamePolicy:
     """The firm directive: first names should not get redacted.
 

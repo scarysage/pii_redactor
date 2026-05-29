@@ -143,6 +143,87 @@ def build_bank_account_recognizer() -> PatternRecognizer:
 
 
 # ---------------------------------------------------------------------------
+# US street addresses + PO Boxes (tagged as LOCATION).
+# ---------------------------------------------------------------------------
+# spaCy's NER catches city / state / country names well but is unreliable on
+# US-style street addresses (it was trained mostly on geopolitical names).
+# These two patterns close that gap.
+#
+# Design notes:
+#
+# * The house-number-then-suffix shape ("123 Main Street") is the strongest
+#   signal we have. We require BOTH a leading 1-6 digit house number AND a
+#   trailing street-type suffix from a fixed list. Without the suffix the
+#   pattern would over-fire on things like "5 Year Plan" or "100 Days of Code".
+#
+# * {1,4} street-name words between number and suffix lets us catch one-word
+#   ("Main"), two-word ("East Main"), or multi-word ("North Lake Shore")
+#   street names, but bounds the match so a long sentence happening to end
+#   in "Street" does not get swept whole.
+#
+# * The suffix list covers the common US Postal Service street types plus
+#   common abbreviations. Edit it if real-world docs reveal misses.
+#
+# * The tag is LOCATION so the output is consistent with spaCy's own
+#   location detections -- the user does not see two different tags for
+#   "address" depending on which detector fired.
+
+# Street suffix alternation -- kept on its own line for readability.
+_STREET_SUFFIXES = (
+    "Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|"
+    "Drive|Dr|Lane|Ln|Way|Court|Ct|Place|Pl|Square|Sq|"
+    "Parkway|Pkwy|Circle|Cir|Terrace|Ter|Trail|Trl|"
+    "Highway|Hwy|Route|Rte|Plaza|Plz|Loop|Run|Pike|"
+    "Crossing|Xing|Alley|Pass|Crescent|Cres"
+)
+
+US_STREET_ADDRESS_PATTERN = Pattern(
+    name="us_street_address",
+    regex=(
+        r"\b\d{1,6}\s+"                              # house number
+        r"(?:[NSEW]\.?\s+)?"                         # optional N/S/E/W
+        r"(?:[\w.'\-]+\s+){1,4}"                     # 1-4 street name words
+        rf"(?:{_STREET_SUFFIXES})"
+        r"\.?\b"                                     # optional trailing period
+    ),
+    score=0.7,
+)
+
+PO_BOX_PATTERN = Pattern(
+    name="po_box",
+    # Match the canonical "PO Box <digits>" shape with the common
+    # punctuation variants: PO Box, P.O. Box, P O Box, POBox.
+    regex=r"\bP\.?\s?O\.?\s?Box\s+\d+\b",
+    score=0.85,
+)
+
+ADDRESS_CONTEXT = [
+    "address",
+    "addresses",
+    "live",
+    "lives",
+    "located",
+    "location",
+    "mailing",
+    "residence",
+    "resides",
+    "street",
+    "city",
+    "zip",
+    "postal",
+]
+
+
+def build_address_recognizer() -> PatternRecognizer:
+    return PatternRecognizer(
+        supported_entity="LOCATION",
+        name="UsAddressRecognizer",
+        patterns=[US_STREET_ADDRESS_PATTERN, PO_BOX_PATTERN],
+        context=ADDRESS_CONTEXT,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Firm-specific names (FIRM_NAMES from firm_config.py).
 # ---------------------------------------------------------------------------
 # Per CLAUDE.md, PERSON detection is the known weak link -- spaCy misses
@@ -205,6 +286,7 @@ def all_custom_recognizers() -> list[PatternRecognizer]:
         build_ein_recognizer(),
         build_routing_recognizer(),
         build_bank_account_recognizer(),
+        build_address_recognizer(),
     ]
     firm = build_firm_names_recognizer()
     if firm is not None:

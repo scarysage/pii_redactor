@@ -234,6 +234,61 @@ for upload in uploaded:
         left, right = st.columns([1, 2])
 
         with left:
+            # Bulk-action buttons: "Keep all <TYPE>" / "Redact all <TYPE>".
+            # Useful for big documents where unchecking 30 individual SSN
+            # checkboxes would be tedious. One button per entity type that
+            # appears in this file's findings.
+            type_counts: dict[str, int] = {}
+            for f in result.findings:
+                type_counts[f.entity_type] = type_counts.get(f.entity_type, 0) + 1
+
+            with st.expander(
+                f"Bulk actions ({len(type_counts)} type"
+                f"{'s' if len(type_counts) != 1 else ''} present)"
+            ):
+                # Master "Reset" puts everything back to redacted (checked).
+                if st.button(
+                    "Redact everything (reset)",
+                    key=_state_key(upload.name, "bulk_reset"),
+                    use_container_width=True,
+                ):
+                    for i in range(len(result.findings)):
+                        st.session_state[
+                            _state_key(upload.name, f"keep::{i}")
+                        ] = True
+                    st.rerun()
+
+                st.caption(
+                    "Uncheck every finding of a single type with one click:"
+                )
+                # Sort by count desc so the most common types appear first.
+                for etype, count in sorted(
+                    type_counts.items(), key=lambda kv: -kv[1]
+                ):
+                    cols = st.columns([3, 2])
+                    if cols[0].button(
+                        f"Keep all `{etype}` ({count})",
+                        key=_state_key(upload.name, f"bulk_keep::{etype}"),
+                        use_container_width=True,
+                    ):
+                        for i, f in enumerate(result.findings):
+                            if f.entity_type == etype:
+                                st.session_state[
+                                    _state_key(upload.name, f"keep::{i}")
+                                ] = False
+                        st.rerun()
+                    if cols[1].button(
+                        f"Redact all `{etype}`",
+                        key=_state_key(upload.name, f"bulk_redact::{etype}"),
+                        use_container_width=True,
+                    ):
+                        for i, f in enumerate(result.findings):
+                            if f.entity_type == etype:
+                                st.session_state[
+                                    _state_key(upload.name, f"keep::{i}")
+                                ] = True
+                        st.rerun()
+
             st.markdown("**Review findings**")
             keep_indices: list[int] = []
             for i, f in enumerate(result.findings):

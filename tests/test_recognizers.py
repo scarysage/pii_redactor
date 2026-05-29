@@ -14,7 +14,9 @@ from firm_config import FIRM_NAMES
 from recognizers import (
     BANK_ACCT_PATTERN,
     EIN_PATTERN,
+    PO_BOX_PATTERN,
     ROUTING_PATTERN,
+    US_STREET_ADDRESS_PATTERN,
     build_always_redact_recognizer,
     build_firm_names_recognizer,
 )
@@ -56,6 +58,77 @@ class TestBankAcctRegex:
 
     def test_rejects_too_short(self):
         assert _matches(BANK_ACCT_PATTERN, "12345") == []
+
+
+class TestUsStreetAddressRegex:
+    """Positive cases the recognizer should catch."""
+
+    def test_matches_basic_address(self):
+        assert "123 Main Street" in _matches(
+            US_STREET_ADDRESS_PATTERN, "Lives at 123 Main Street."
+        )
+
+    def test_matches_abbreviated_suffix(self):
+        for ex in (
+            "45 Oak Ave",
+            "789 Park Rd",
+            "1500 Pennsylvania Blvd",
+            "12 Sunset Dr",
+            "8 Lake Ln",
+        ):
+            assert _matches(US_STREET_ADDRESS_PATTERN, ex), ex
+
+    def test_matches_directional_and_numbered_street(self):
+        # "West 42nd Street" / "N. Lake Shore Drive" style.
+        for ex in (
+            "100 West 42nd Street",
+            "200 N. Lake Shore Drive",
+            "50 E Main St",
+        ):
+            assert _matches(US_STREET_ADDRESS_PATTERN, ex), ex
+
+    def test_case_insensitive(self):
+        # Presidio compiles patterns with IGNORECASE, but our raw regex test
+        # passes the flag explicitly to mirror that.
+        for ex in ("123 main street", "456 OAK AVE"):
+            assert re.search(
+                US_STREET_ADDRESS_PATTERN.regex, ex, flags=re.IGNORECASE
+            ), ex
+
+
+class TestUsStreetAddressRegexNegatives:
+    """False-positive guards: things that look address-shaped but aren't."""
+
+    def test_no_match_on_number_plus_noun_without_suffix(self):
+        # "5 Year Plan" -- this is the classic over-matching trap.
+        assert not _matches(US_STREET_ADDRESS_PATTERN, "Our 5 Year Plan")
+
+    def test_no_match_on_days_of_code(self):
+        assert not _matches(US_STREET_ADDRESS_PATTERN, "100 Days of Code")
+
+    def test_no_match_on_dosage(self):
+        assert not _matches(US_STREET_ADDRESS_PATTERN, "1500 mg dose")
+
+    def test_no_match_on_invoice_line(self):
+        assert not _matches(
+            US_STREET_ADDRESS_PATTERN, "Item 42 quantity 3 total $100"
+        )
+
+    def test_no_match_without_house_number(self):
+        # Pure street name, no number -> not an "address" in our sense.
+        assert not _matches(US_STREET_ADDRESS_PATTERN, "Just Main Street.")
+
+
+class TestPoBoxRegex:
+    def test_matches_canonical_po_box(self):
+        assert "PO Box 1234" in _matches(PO_BOX_PATTERN, "Mail to PO Box 1234.")
+
+    def test_matches_periodic_variants(self):
+        for ex in ("P.O. Box 567", "P O Box 89", "POBox 22"):
+            assert _matches(PO_BOX_PATTERN, ex), ex
+
+    def test_no_match_on_unrelated(self):
+        assert not _matches(PO_BOX_PATTERN, "Open the box of 5")
 
 
 class TestFirmNamesRecognizer:

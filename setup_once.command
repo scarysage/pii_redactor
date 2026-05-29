@@ -33,32 +33,54 @@ echo "Working dir: $SCRIPT_DIR"
 echo
 
 # ----------------------------------------------------------------------------
-# 1. Find a usable Python 3. We do NOT bundle Python; users install it once.
+# 1. Find a usable Python in the 3.10 - 3.12 range.
 # ----------------------------------------------------------------------------
-if command -v python3 >/dev/null 2>&1; then
-    PY=python3
-else
-    echo "ERROR: python3 is not installed or not on PATH."
+# Why cap at 3.12: requirements.txt pins spaCy 3.7.5, which has prebuilt
+# wheels for cp310 / cp311 / cp312 but NOT cp313. On Python 3.13 pip falls
+# back to building thinc and spacy from source, which fails on most Macs
+# without a full Cython/C toolchain set up. Forcing a known-good version
+# range here is much friendlier than letting setup explode mid-install.
+#
+# Search order: most-preferred (3.12) first, falling back through versioned
+# binaries Homebrew / python.org typically install. The plain `python3`
+# symlink is checked last so a user who has multiple Pythons installed
+# always gets the highest supported version, not whichever one happens to
+# own the symlink today.
+PY=""
+PY_VERSION=""
+for CAND in python3.12 python3.11 python3.10 python3; do
+    if ! command -v "$CAND" >/dev/null 2>&1; then
+        continue
+    fi
+    VER=$("$CAND" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null) || continue
+    MAJ=${VER%.*}
+    MIN=${VER#*.}
+    if [ "$MAJ" = "3" ] && [ "$MIN" -ge 10 ] && [ "$MIN" -le 12 ]; then
+        PY="$CAND"
+        PY_VERSION="$VER"
+        break
+    fi
+done
+
+if [ -z "$PY" ]; then
+    echo "ERROR: No supported Python found on this Mac."
     echo
-    echo "Install Python 3.10+ from one of:"
-    echo "  - https://www.python.org/downloads/  (official installer)"
-    echo "  - Homebrew: brew install python@3.12"
+    echo "This tool needs Python 3.10, 3.11, or 3.12."
+    echo "Python 3.13 (and newer) is NOT supported -- some required"
+    echo "libraries do not have versions that work with 3.13 yet."
     echo
-    echo "Then re-run setup_once.command."
+    echo "Install Python 3.12 from one of:"
+    echo "  - python.org (recommended for non-developers):"
+    echo "      https://www.python.org/downloads/release/python-3120/"
+    echo "      Scroll down to 'macOS 64-bit universal2 installer' and run it."
+    echo "  - Homebrew (if you already use it):"
+    echo "      brew install python@3.12"
+    echo
+    echo "After installing, re-run setup_once.command."
     read -p "Press Enter to close..." _
     exit 1
 fi
 
-# Minimal version check: need Python 3.10+ for the requirements pins.
-PY_VERSION=$("$PY" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-PY_MAJOR=${PY_VERSION%.*}
-PY_MINOR=${PY_VERSION#*.}
-if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 10 ]; }; then
-    echo "ERROR: Python $PY_VERSION found, but 3.10 or newer is required."
-    echo "Install a newer Python and re-run."
-    read -p "Press Enter to close..." _
-    exit 1
-fi
 echo "Using Python: $PY ($PY_VERSION)"
 
 # ----------------------------------------------------------------------------

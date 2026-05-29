@@ -36,24 +36,86 @@ echo Working dir: %CD%
 echo.
 
 REM ----------------------------------------------------------------------------
-REM 1. Find a usable Python. We do NOT bundle Python; users install it once.
+REM 1. Find a usable Python in the 3.10 - 3.12 range.
 REM ----------------------------------------------------------------------------
+REM Why cap at 3.12: requirements.txt pins spaCy 3.7.5, which has prebuilt
+REM wheels for cp310 / cp311 / cp312 but NOT cp313. On Python 3.13 pip falls
+REM back to building thinc and spacy from source, which fails without a
+REM full Visual C++ build toolchain installed. Forcing a known-good range
+REM here is much friendlier than letting setup explode mid-install.
+REM
+REM Search order: prefer the Python launcher (`py -3.12`) because it
+REM reliably picks a specific installed version. Falls back through 3.11,
+REM 3.10, and finally a plain `python` (only if it happens to be in the
+REM supported range).
+
+SET "PY="
+SET "PY_VERSION="
+
 WHERE py >nul 2>&1
 IF %ERRORLEVEL%==0 (
-    SET "PY=py -3"
-) ELSE (
-    WHERE python >nul 2>&1
-    IF %ERRORLEVEL%==0 (
-        SET "PY=python"
-    ) ELSE (
-        echo ERROR: Python is not installed or not on PATH.
-        echo Install Python 3.10+ from https://www.python.org/downloads/
-        echo Re-run setup_once.bat after installing.
-        PAUSE
-        EXIT /B 1
+    py -3.12 -c "import sys" >nul 2>&1
+    IF NOT ERRORLEVEL 1 (
+        SET "PY=py -3.12"
+        SET "PY_VERSION=3.12"
+        GOTO :py_found
+    )
+    py -3.11 -c "import sys" >nul 2>&1
+    IF NOT ERRORLEVEL 1 (
+        SET "PY=py -3.11"
+        SET "PY_VERSION=3.11"
+        GOTO :py_found
+    )
+    py -3.10 -c "import sys" >nul 2>&1
+    IF NOT ERRORLEVEL 1 (
+        SET "PY=py -3.10"
+        SET "PY_VERSION=3.10"
+        GOTO :py_found
     )
 )
-echo Using Python: %PY%
+
+REM Last-ditch: a plain `python` on PATH, but only if it's in the supported
+REM range. We check version via a Python one-liner so we don't have to parse
+REM `python --version` output ourselves.
+WHERE python >nul 2>&1
+IF %ERRORLEVEL%==0 (
+    FOR /F "tokens=1,2 delims=." %%A IN ('python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2^>nul') DO (
+        SET "PY_MAJOR=%%A"
+        SET "PY_MINOR=%%B"
+    )
+    IF "!PY_MAJOR!"=="3" (
+        IF !PY_MINOR! GEQ 10 (
+            IF !PY_MINOR! LEQ 12 (
+                SET "PY=python"
+                SET "PY_VERSION=!PY_MAJOR!.!PY_MINOR!"
+                GOTO :py_found
+            )
+        )
+    )
+)
+
+REM No usable Python found.
+echo ERROR: No supported Python found on this PC.
+echo.
+echo This tool needs Python 3.10, 3.11, or 3.12.
+echo Python 3.13 (and newer) is NOT supported -- some required
+echo libraries do not have versions that work with 3.13 yet.
+echo.
+echo Install Python 3.12 from:
+echo   https://www.python.org/downloads/release/python-3120/
+echo Scroll down to "Windows installer (64-bit)" and run it.
+echo.
+echo IMPORTANT: when the installer opens, TICK the box that says
+echo     "Add python.exe to PATH"
+echo at the bottom of the FIRST screen, BEFORE clicking Install.
+echo Without this checkbox, the tool will not find Python.
+echo.
+echo After installing, re-run setup_once.bat.
+PAUSE
+EXIT /B 1
+
+:py_found
+echo Using Python: %PY% (version %PY_VERSION%)
 
 REM ----------------------------------------------------------------------------
 REM 2. Verify the vendored spaCy model is present. If not, abort -- do not

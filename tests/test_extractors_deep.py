@@ -67,6 +67,124 @@ def test_docx_paragraphs_with_no_pii_untouched(tmp_path: Path):
     assert "No PII in this sentence either." in out_text
 
 
+def test_docx_table_column_masking_catches_bare_numbers(tmp_path: Path):
+    """The real-world regression from the engagement-letter test: account
+    and routing numbers sit in cells with no surrounding context words, so
+    the per-paragraph scan misses them or mis-tags them. The header-keyword
+    column pass MUST mask the whole column even when individual cells
+    don't have the right context."""
+    src = tmp_path / "in.docx"
+    dst = tmp_path / "out.docx"
+
+    doc = Document()
+    doc.add_paragraph("Accounts on File")
+    table = doc.add_table(rows=3, cols=4)
+    table.rows[0].cells[0].text = "Client"
+    table.rows[0].cells[1].text = "Bank"
+    table.rows[0].cells[2].text = "Account #"
+    table.rows[0].cells[3].text = "Routing #"
+
+    table.rows[1].cells[0].text = "Aaron Strassler"
+    table.rows[1].cells[1].text = "First Meridian Bank"
+    table.rows[1].cells[2].text = "0048291756"
+    table.rows[1].cells[3].text = "021000089"
+
+    table.rows[2].cells[0].text = "Miriam Herbstman"
+    table.rows[2].cells[1].text = "Northgate Securities"
+    table.rows[2].cells[2].text = "739104825"
+    table.rows[2].cells[3].text = "121000358"
+
+    doc.save(str(src))
+    redact_file(src, dst)
+
+    out = Document(str(dst))
+    cells_by_col: list[list[str]] = [[], [], [], []]
+    for t in out.tables:
+        for row in t.rows:
+            for col_idx, cell in enumerate(row.cells):
+                cells_by_col[col_idx].append(cell.text)
+
+    # Header row stays intact.
+    assert cells_by_col[2][0] == "Account #"
+    assert cells_by_col[3][0] == "Routing #"
+
+    # Account # column: data cells must be replaced with the account tag.
+    # Critically, the raw digits MUST be gone -- this is what was failing.
+    for raw in ("0048291756", "739104825"):
+        for col_cells in cells_by_col:
+            for cell_text in col_cells[1:]:  # skip header
+                assert raw not in cell_text, (
+                    f"raw account # {raw!r} leaked into output"
+                )
+    # The data rows in columns 2 and 3 should be tagged.
+    for row_idx in (1, 2):
+        assert "<" in cells_by_col[2][row_idx], (
+            f"Account col row {row_idx} not masked: {cells_by_col[2][row_idx]!r}"
+        )
+        assert "<" in cells_by_col[3][row_idx], (
+            f"Routing col row {row_idx} not masked: {cells_by_col[3][row_idx]!r}"
+        )
+    # And the raw routing values are gone too.
+    for raw in ("021000089", "121000358"):
+        for col_cells in cells_by_col:
+            for cell_text in col_cells[1:]:
+                assert raw not in cell_text, (
+                    f"raw routing # {raw!r} leaked into output"
+                )
+
+
+def test_docx_table_without_sensitive_headers_uses_cell_level(tmp_path: Path):
+    """A table whose row-1 headers don't match sensitive keywords must NOT
+    get the wholesale-column treatment. Per-paragraph scan still runs."""
+    src = tmp_path / "in.docx"
+    dst = tmp_path / "out.docx"
+
+    doc = Document()
+    table = doc.add_table(rows=2, cols=2)
+    table.rows[0].cells[0].text = "Item"
+    table.rows[0].cells[1].text = "Description"
+    table.rows[1].cells[0].text = "Pencils"
+    table.rows[1].cells[1].text = "A normal description"
+    doc.save(str(src))
+
+    redact_file(src, dst)
+
+    out = Document(str(dst))
+    cells = []
+    for t in out.tables:
+        for row in t.rows:
+            for cell in row.cells:
+                cells.append(cell.text)
+    # Nothing should have been masked wholesale -- no `<` in any cell.
+    assert "Pencils" in cells
+    assert "A normal description" in cells
+
+
+def test_docx_table_freetext_column_is_exempt(tmp_path: Path):
+    """A column named Notes/Comments/Description must NOT be masked wholesale;
+    cell-level redaction applies instead."""
+    src = tmp_path / "in.docx"
+    dst = tmp_path / "out.docx"
+
+    doc = Document()
+    table = doc.add_table(rows=2, cols=2)
+    table.rows[0].cells[0].text = "Date"
+    table.rows[0].cells[1].text = "Notes"
+    table.rows[1].cells[0].text = "2024-01-01"
+    table.rows[1].cells[1].text = "Routine call, EIN on file: 12-3456789"
+    doc.save(str(src))
+
+    redact_file(src, dst)
+
+    out = Document(str(dst))
+    notes_cell = out.tables[0].rows[1].cells[1].text
+    # The whole cell should NOT be replaced by a single tag.
+    assert "Routine call" in notes_cell
+    # But the EIN inside it should be redacted by the per-paragraph pass.
+    assert "12-3456789" not in notes_cell
+    assert "<US_EIN>" in notes_cell
+
+
 # ---------------------------------------------------------------------------
 # XLSX: multi-sheet
 # ---------------------------------------------------------------------------

@@ -226,17 +226,106 @@ def redact_docx(src: Path, dst: Path) -> ExtractionResult:
     for p in doc.paragraphs:
         process(p)
 
+    # Tables get the per-paragraph scan AND a column-header pass. The latter
+    # mirrors the XLSX hybrid approach: in a real engagement letter or 1099
+    # roster, sensitive values (SSN, Account #, Routing #) live in cells whose
+    # only "context" is the header in row 1. Per-paragraph analysis can't see
+    # that context, so a bare 9-digit cell gets mis-tagged as PHONE_NUMBER or
+    # DATE_TIME -- or missed entirely. The header pass catches these.
     for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
-                    process(p)
+        _redact_docx_table(table, process, all_findings)
 
     doc.save(str(dst))
 
     # Build the plain-text view for the review screen by re-extracting after save.
     review_text = "\n".join(p.text for p in Document(str(dst)).paragraphs)
     return ExtractionResult(text=review_text, findings=all_findings)
+
+
+def _redact_docx_table(table, process_paragraph, all_findings: list[Finding]) -> None:
+    """Per-paragraph scan plus header-keyword column masking for a DOCX table.
+
+    Sequence:
+      1. Run the per-paragraph analyzer on every cell. Catches inline mentions
+         (e.g. an email or PERSON name written inside a cell with surrounding
+         context words).
+      2. Treat row 1 as headers. If any header matches a SENSITIVE_HEADER
+         keyword, mask every data cell in that column wholesale -- replacing
+         the cell with the column's tag (e.g. `<US_BANK_ACCOUNT>`), styled
+         bold + red.
+
+    The masking pass overwrites whatever the per-paragraph scan produced in
+    those cells. That's intentional: a header-flagged column gets the correct
+    tag (US_BANK_ACCOUNT) even if per-paragraph analysis mis-tagged the value
+    as PHONE_NUMBER for lack of context.
+
+    Free-text columns (Notes / Comments / Memo / ...) are exempt from
+    wholesale masking, exactly like in XLSX -- they keep the per-paragraph
+    pass instead.
+    """
+    # Step 1: per-paragraph scan everywhere.
+    for row in table.rows:
+        for cell in row.cells:
+            for p in cell.paragraphs:
+                process_paragraph(p)
+
+    # Step 2: header-based column masking. Needs at least header + 1 data row.
+    if len(table.rows) < 2:
+        return
+
+    header_cells = table.rows[0].cells
+    headers_lower = [c.text.strip().lower() for c in header_cells]
+
+    flagged_cols: dict[int, str] = {}
+    for col_idx, h in enumerate(headers_lower):
+        if not h:
+            continue
+        if any(kw in h for kw in FREETEXT_HEADER_KEYWORDS):
+            continue
+        for kw in SENSITIVE_HEADER_KEYWORDS:
+            if kw in h:
+                flagged_cols[col_idx] = _tag_for_header(h)
+                break
+
+    if not flagged_cols:
+        return
+
+    for row in table.rows[1:]:
+        for col_idx, cell in enumerate(row.cells):
+            if col_idx not in flagged_cols:
+                continue
+            if not cell.text.strip():
+                continue
+            tag = f"<{flagged_cols[col_idx]}>"
+            _replace_cell_text(cell, tag)
+            all_findings.append(Finding(
+                start=0,
+                end=len(tag),
+                entity_type=flagged_cols[col_idx],
+                score=1.0,
+                text=cell.text,
+            ))
+
+
+def _replace_cell_text(cell, replacement: str) -> None:
+    """Clear every paragraph and run in `cell`, leaving a single styled run.
+
+    We can't just set cell.text = replacement because python-docx would
+    insert it as a plain run with no styling. To get the bold + red style
+    consistent with the rest of the output, we clear the existing structure
+    and add one new run on a single paragraph.
+    """
+    # Drop every paragraph after the first; keep one to write into.
+    paragraphs = cell.paragraphs
+    for p in paragraphs[1:]:
+        p._element.getparent().remove(p._element)
+
+    p = cell.paragraphs[0]
+    for run in list(p.runs):
+        run._element.getparent().remove(run._element)
+    run = p.add_run(replacement)
+    run.bold = True
+    run.font.color.rgb = REDACT_RGB
 
 
 def _rewrite_paragraph(paragraph, text: str, findings: Iterable[Finding]) -> None:
