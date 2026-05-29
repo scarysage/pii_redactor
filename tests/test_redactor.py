@@ -126,6 +126,77 @@ class TestFirmNameEndToEnd:
             assert word in red
 
 
+class TestFirstNamePolicy:
+    """The firm directive: first names should not get redacted.
+
+    Policy (see redactor._enforce_no_first_names):
+      - FIRM_NAMES match -> full redact (curated surnames).
+      - Multi-word PERSON span -> shrink to last word.
+      - Single-word PERSON span NOT in FIRM_NAMES -> drop entirely.
+    """
+
+    def test_full_name_keeps_first_name(self):
+        red, findings = redact("Jane Doe filed the return.")
+        # First name survives; surname is redacted as PERSON.
+        assert "Jane" in red
+        assert "Doe" not in red
+        assert "<PERSON>" in red
+        # The finding's matched text is now just the last token.
+        person = [f for f in findings if f.entity_type == "PERSON"]
+        assert any(f.text == "Doe" for f in person)
+
+    def test_bare_first_name_is_left_alone(self):
+        # "Maria" alone, not in FIRM_NAMES -> dropped per policy.
+        red, findings = redact("Maria called yesterday.")
+        assert "Maria" in red
+        assert "<PERSON>" not in red
+
+    def test_firm_name_alone_still_redacted(self):
+        # Strassler is in FIRM_NAMES -> the single-token-drop rule does NOT apply.
+        red, _ = redact("Strassler called yesterday.")
+        assert "Strassler" not in red
+        assert "<PERSON>" in red
+
+    def test_firm_name_with_first_name(self):
+        # Multi-token containing a curated surname: spaCy may detect the whole
+        # "John Strassler" as PERSON; the firm-names recognizer also detects
+        # "Strassler". Both findings get redacted -- final output keeps "John"
+        # but loses "Strassler".
+        red, _ = redact("John Strassler signed off.")
+        assert "John" in red
+        assert "Strassler" not in red
+
+
+class TestUserAdditions:
+    """Session-only and persistent user terms get matched as REDACTED."""
+
+    def test_session_term_redacted(self):
+        from redactor import set_session_terms
+        try:
+            set_session_terms(["FALCON-7"])
+            red, findings = redact("Refer to project FALCON-7 for details.")
+            assert "FALCON-7" not in red
+            assert "<REDACTED>" in red
+            assert any(f.entity_type == "REDACTED" for f in findings)
+        finally:
+            set_session_terms([])  # reset for other tests
+
+    def test_session_term_case_insensitive(self):
+        from redactor import set_session_terms
+        try:
+            set_session_terms(["FALCON-7"])
+            red, _ = redact("note: falcon-7 update")
+            assert "falcon-7" not in red.lower() or "<REDACTED>" in red
+        finally:
+            set_session_terms([])
+
+    def test_empty_session_terms_noop(self):
+        from redactor import set_session_terms
+        set_session_terms([])
+        red, _ = redact("Plain sentence with no PII.")
+        assert "<REDACTED>" not in red
+
+
 class TestEmptyInput:
     def test_empty_string(self):
         red, findings = redact("")

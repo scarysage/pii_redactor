@@ -18,6 +18,7 @@ Loading the spaCy model:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -27,7 +28,9 @@ from presidio_analyzer.nlp_engine import NlpEngineProvider
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig, RecognizerResult
 
+from firm_config import FIRM_NAMES
 from recognizers import all_custom_recognizers
+from user_additions import load_user_additions
 
 
 # Path to the vendored spaCy model. Resolved relative to THIS file so the app
@@ -80,6 +83,26 @@ class Finding:
 # spaCy). Streamlit reruns the script on every interaction, so we cache it.
 _analyzer: AnalyzerEngine | None = None
 _anonymizer: AnonymizerEngine | None = None
+
+# Session-only terms. The Streamlit UI calls set_session_terms() each rerun
+# with whatever the user typed into the "Add for this session" box. These are
+# matched as literal strings (case-insensitive, whole-word) on top of
+# whatever Presidio finds, and tagged `<REDACTED>`.
+#
+# Persistent terms live in user_additions.txt and are reloaded from disk on
+# every analyze() call -- no caching, so adds via the UI take effect
+# immediately without restarting the engine.
+_session_terms: list[str] = []
+
+
+def set_session_terms(terms: Iterable[str]) -> None:
+    """UI hook: replace the in-memory session-only term list.
+
+    Streamlit reruns the script on every interaction; the UI should call this
+    once per rerun with the current session-state list of terms.
+    """
+    global _session_terms
+    _session_terms = [t for t in terms if t and t.strip()]
 
 
 def _build_nlp_engine():
@@ -140,6 +163,14 @@ def analyze(text: str, entities: Iterable[str] | None = None) -> list[Finding]:
     """
     Run Presidio over `text` and return Findings above SCORE_THRESHOLD.
 
+    On top of Presidio, we:
+      1. Apply the firm's "no first names" policy -- multi-word PERSON spans
+         get shrunk to their last word; single-word PERSON spans that are NOT
+         in FIRM_NAMES get dropped. See _enforce_no_first_names() for the
+         full rules.
+      2. Add literal-match findings for any user-supplied terms (session
+         and persistent). Tagged `REDACTED`.
+
     Findings are sorted by start offset. Overlapping findings can occur (e.g.
     a phone number that also looks like an account number) -- we leave them
     in so the user can decide; apply_decisions() resolves overlaps.
@@ -165,7 +196,92 @@ def analyze(text: str, entities: Iterable[str] | None = None) -> list[Finding]:
         )
         for r in raw
     ]
+
+    findings = _enforce_no_first_names(findings)
+    findings.extend(_match_user_terms(text, _all_extra_terms()))
     findings.sort(key=lambda f: (f.start, f.end))
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# First-name policy
+# ---------------------------------------------------------------------------
+
+_LAST_TOKEN_RE = re.compile(r"\S+$")
+
+
+def _enforce_no_first_names(findings: list[Finding]) -> list[Finding]:
+    """Apply the firm's "do not redact first names" rule.
+
+    Policy:
+        * Finding text that matches a name in FIRM_NAMES (case-insensitive)
+          -> keep the full span. These are curated surnames the firm wants
+          redacted every time, even on their own.
+        * Other PERSON spans with multiple whitespace-separated tokens
+          -> shrink the span to cover only the last token (assumed surname).
+          Output goes from "Jane Doe" to "Jane <PERSON>".
+        * Other PERSON spans that are a single token -> drop. We can't tell
+          first from last without context, and the firm directive is to err
+          on the side of leaving first names alone.
+        * Non-PERSON findings -> unchanged.
+    """
+    firm_lower = {n.lower() for n in FIRM_NAMES}
+    out: list[Finding] = []
+    for f in findings:
+        if f.entity_type != "PERSON":
+            out.append(f)
+            continue
+
+        if f.text.lower() in firm_lower:
+            out.append(f)
+            continue
+
+        # Where is the last whitespace-separated token within f.text?
+        m = _LAST_TOKEN_RE.search(f.text)
+        if m is None:
+            # Defensive: empty or whitespace-only -- drop.
+            continue
+
+        # Single-token span (last token == whole span) -- drop, per policy.
+        if m.start() == 0:
+            continue
+
+        # Multi-token: shrink to the last token.
+        new_start = f.start + m.start()
+        out.append(Finding(
+            start=new_start,
+            end=f.end,
+            entity_type=f.entity_type,
+            score=f.score,
+            text=m.group(0),
+        ))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# User-added literal terms (session + persistent)
+# ---------------------------------------------------------------------------
+
+def _all_extra_terms() -> list[str]:
+    """Session terms (set by UI) + persistent terms (from user_additions.txt)."""
+    return list(_session_terms) + load_user_additions()
+
+
+def _match_user_terms(text: str, terms: list[str]) -> list[Finding]:
+    """Whole-word, case-insensitive literal match for each term in `terms`."""
+    if not terms:
+        return []
+    # Alternation across all terms; re.escape handles regex specials.
+    pattern = r"\b(?:" + "|".join(re.escape(t) for t in terms) + r")\b"
+    findings: list[Finding] = []
+    for m in re.finditer(pattern, text, flags=re.IGNORECASE):
+        findings.append(Finding(
+            start=m.start(),
+            end=m.end(),
+            entity_type="REDACTED",
+            score=1.0,
+            text=m.group(0),
+        ))
     return findings
 
 

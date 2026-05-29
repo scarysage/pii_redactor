@@ -24,6 +24,10 @@ Thumbs.db
 /output/
 *.real.*
 
+# Per-installation file written by the in-app "Save permanently" button.
+# Not tracked -- each installation has its own list.
+user_additions.txt
+
 # The vendored spaCy model is 620 MB and contains a 588 MB vectors file that
 # exceeds GitHub's 100 MB per-file limit. We do NOT track it in git. It ships
 # with the distribution zip instead (per CLAUDE.md "Packaging"). The folder

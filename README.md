@@ -15,8 +15,10 @@ human review screen before download.
 | File / folder              | Role                                                                 |
 | -------------------------- | -------------------------------------------------------------------- |
 | `recognizers.py`           | Custom Presidio regex recognizers (EIN, routing, account, names)     |
-| `firm_config.py`           | **The firm edits this** — `FIRM_NAMES` and `ALWAYS_REDACT` lists     |
-| `CUSTOMIZING.md`           | Plain-language guide for the firm to edit `firm_config.py`           |
+| `firm_config.py`           | IT-curated baseline lists: `FIRM_NAMES` and `ALWAYS_REDACT`          |
+| `user_additions.py`        | Read/write helpers for `user_additions.txt` (UI-managed)             |
+| `user_additions.txt`       | UI-added persistent terms (created on first add; gitignored)         |
+| `CUSTOMIZING.md`           | Plain-language guide: in-app box + editing `firm_config.py`          |
 | `redactor.py`              | Presidio analyzer + anonymizer; loads vendored spaCy model           |
 | `extractors.py`            | File → redacted file pipeline for `.txt`, `.pdf`, `.docx`, `.xlsx`   |
 | `app.py`                   | Streamlit UI: upload → auto-redact → review → download               |
@@ -54,7 +56,16 @@ Plus Presidio's built-in recognizers for `US_SSN`, `EMAIL_ADDRESS`,
 - `FIRM_NAMES` — names the language model misses. Currently: `Strassler`, `Herbstman`. Matched case-insensitively, whole-word, tagged `PERSON`.
 - `ALWAYS_REDACT` — literal strings to always strip (account numbers, project codes, etc.). Empty by default, tagged `REDACTED`.
 
-See [`CUSTOMIZING.md`](CUSTOMIZING.md) for the plain-language guide we hand the firm.
+**End-user "Add" box** in the UI (`➕ Add a specific item to redact` expander above the uploader):
+- Session-only terms — held in `st.session_state`, lost on tab close.
+- Permanently-saved terms — appended to `user_additions.txt`, persist across restarts.
+
+**First-name policy** (per firm directive — first names are NOT redacted):
+- `FIRM_NAMES` matches → full redact (curated surnames).
+- Multi-word PERSON spans → shrunk to the last word ("Jane Doe" → "Jane `<PERSON>`").
+- Single-word PERSON spans not in `FIRM_NAMES` → dropped. If a specific surname must be caught, add it to `FIRM_NAMES`.
+
+See [`CUSTOMIZING.md`](CUSTOMIZING.md) for the plain-language guide.
 
 Threshold for surfacing a finding: `0.35` (empirical — low enough to catch our
 context-boosted custom recognizers, high enough to drop noise).

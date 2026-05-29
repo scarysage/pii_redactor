@@ -1,14 +1,59 @@
 # Customizing what gets redacted
 
-You can add new names, account numbers, or any specific text the redactor
-should always remove — without writing code. Everything you need to edit
-lives in **one file**: `firm_config.py`.
+You have **two ways** to add things the redactor should strip out:
 
-If you can edit a grocery list in a text file, you can do this.
+| Method                                | Who it's for                          | How                                            |
+| ------------------------------------- | ------------------------------------- | ---------------------------------------------- |
+| **The "Add" box in the app**          | Anyone using the redactor             | Click `➕ Add a specific item to redact` above the upload area. Pick "this session" or "save permanently". |
+| **Edit `firm_config.py` in a text editor** | IT person setting up the baseline list | Open the file, edit a list, save.        |
+
+Both methods work side-by-side and persist across restarts (except "this
+session" — see below).
+
+If you only want to add or remove a name / number, use the in-app box. If
+you're setting up the firm's baseline list (the names that should be
+caught for every user, on every machine), edit `firm_config.py`.
 
 ---
 
-## Before you start
+## Method 1: the "Add" box in the app (easiest)
+
+Open the redactor (`START_HERE.bat` on Windows or `START_HERE.command` on Mac).
+At the top of the page, click `➕ Add a specific item to redact`.
+
+You'll see:
+
+1. **A text box** — type the name, number, or phrase you want stripped out.
+2. **A choice** — pick one:
+    * **Just for this session** — applied until you close the browser tab.
+      Use this when you want to redact something one time without committing
+      to it forever.
+    * **Save permanently** — written to disk. Every future upload (today,
+      tomorrow, after a restart) will also redact this item.
+3. **An "Add" button** — click it. The item appears in a list below.
+
+To remove an item later, click the **Remove** button next to it.
+
+### Notes
+
+* Items are matched **whole-word, case-insensitive** — same rules as the
+  lists in `firm_config.py`.
+* Items get the `<REDACTED>` tag in the output.
+* If you add a really common word ("the", "and"), every document will have a
+  ton of redactions. Use **Remove** to undo.
+* "Save permanently" entries live in a file called `user_additions.txt` in
+  the same folder as the redactor. You can also open it in a text editor
+  if you prefer — one entry per line, blank lines and `#` lines ignored.
+
+---
+
+## Method 2: editing `firm_config.py` (for IT / the baseline list)
+
+Use this for the firm-wide baseline — names and items that should be caught
+for **every user, on every machine**, before anyone touches the in-app
+box. If you're just adding a one-off, use Method 1 above.
+
+### Before you start
 
 1. Make sure the redactor app is **closed**. (Close the browser tab and the
    black command window that opened when you double-clicked `START_HERE.bat`.)
