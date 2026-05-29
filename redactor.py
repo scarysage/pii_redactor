@@ -135,6 +135,13 @@ def _build_analyzer() -> AnalyzerEngine:
     registry = RecognizerRegistry()
     # Load the predefined English recognizers (SSN, credit card, email, etc.).
     registry.load_predefined_recognizers(languages=["en"])
+
+    # Drop Presidio's default PhoneRecognizer -- it flags bare 10-digit
+    # strings (e.g. an account number "4155550123") as PHONE_NUMBER, which
+    # mislabels them in the review screen. Our custom phone recognizer
+    # (added below) only matches phone-shaped formatted numbers.
+    registry.remove_recognizer("PhoneRecognizer")
+
     # Layer our custom regex recognizers on top.
     for rec in all_custom_recognizers():
         registry.add_recognizer(rec)

@@ -11,10 +11,10 @@ No network calls at runtime, ever.** See "Offline guarantee" below.
 
 ---
 
-## Status & handoff (last session: 2026-05-29)
+## Status & handoff (last session: 2026-05-29, post-audit)
 
-The tool is functional end-to-end on Mac and ready for further round-trip
-testing against the firm's synthetic engagement-letter / 1099 / roster docs.
+The tool is functional end-to-end on Mac. A breadth-first recognition audit
+landed in this session — see `RECOGNITION_AUDIT.md` for the full report.
 
 **What's been built and verified locally:**
 
@@ -23,13 +23,21 @@ testing against the firm's synthetic engagement-letter / 1099 / roster docs.
 * Custom recognizers in `recognizers.py`:
   - `US_EIN` (dashed `NN-NNNNNNN`)
   - `US_BANK_ROUTING` (9-digit, context-boosted)
-  - `US_BANK_ACCOUNT` (6–17 digit, context-boosted)
+  - `US_BANK_ACCOUNT` (6–8 or 10–17 digit; **9-digit excluded by design**
+    to resolve the collision with routing — see Open Work #2 below)
   - US street addresses + PO Boxes, tagged `LOCATION`
+  - `US_ZIP` (new this session; tagged `LOCATION`) — high-confidence after
+    a 2-letter state prefix (`NJ 07102`), low-confidence with ZIP context
+    word, silent on bare 5-digit numbers like `12345 employees`
+  - `PHONE_NUMBER` (custom replacement for Presidio's default) — requires
+    phone-shaped formatting (parens / dashes / dots / spaces); bare
+    10-digit strings like `4155550123` are NOT tagged as phone
   - `FIRM_NAMES` deny-list (currently `Strassler`, `Herbstman`), tagged `PERSON`
   - `ALWAYS_REDACT` literal-match list, tagged `REDACTED`
 * First-name policy enforced post-Presidio: full-name spans trim to the
-  last token, single-word non-firm PERSON spans drop. (See
-  `redactor._enforce_no_first_names`.)
+  last token (with multi-part surname particles absorbed — `Lars van der
+  Berg` trims to `Lars <PERSON>`, not `Lars van der <PERSON>`); single-word
+  non-firm PERSON spans drop. (See `redactor._enforce_no_first_names`.)
 * User-editable knobs:
   - `firm_config.py` — IT-curated `FIRM_NAMES` and `ALWAYS_REDACT` lists
   - `user_additions.txt` — UI-managed persistent terms (per-installation,
@@ -56,12 +64,15 @@ testing against the firm's synthetic engagement-letter / 1099 / roster docs.
 * Docs for end users: `SETUP_GUIDE.md` (two-section, Mac + Windows, with
   full Gatekeeper / Mark-of-the-Web walkthroughs) and `CUSTOMIZING.md`
   (in-app box first, edit-`firm_config.py` second).
-* Tests: **110 passing in ~4s.** Coverage includes regex isolation,
-  end-to-end Presidio detection, DOCX/XLSX/PDF round-trips, DOCX table
-  column-masking regression, overlap/adjacency handling, Unicode + regex
-  metachar safety, network-isolation guarantee (socket / urllib patched),
-  preview render, missing-model defensive path, and user-additions live
-  reload.
+* Tests: **186 passing, 1 skipped, 0 xfail in ~5s.** Coverage includes
+  regex isolation, end-to-end Presidio detection, DOCX/XLSX/PDF
+  round-trips, DOCX table column-masking regression, overlap/adjacency
+  handling, Unicode + regex metachar safety, network-isolation guarantee
+  (socket / urllib patched), preview render, missing-model defensive
+  path, user-additions live reload, surname-particle trimming, and the
+  full breadth-first PII battery (`tests/test_pii_battery.py`) covering
+  every recognizer with synthetic data plus adversarial cross-recognizer
+  cases.
 
 **What's resolved from the original TODO list:**
 
@@ -80,13 +91,34 @@ testing against the firm's synthetic engagement-letter / 1099 / roster docs.
 **Local uncommitted state (NEEDS COMMIT + PUSH if next session is
 continuing the work):**
 
-* DOCX table column masking (`_redact_docx_table` in `extractors.py`).
-* Bulk Keep/Redact-by-type UI buttons in `app.py`.
-* Corresponding tests in `tests/test_extractors_deep.py`.
+* Recognition audit changes from this session:
+  - `recognizers.py`: account regex tightened to skip 9-digit; new
+    `US_ZIP` recognizer; new `PHONE_NUMBER` recognizer replacing
+    Presidio's permissive default; **context lists migrated to lemma
+    forms** (silent bug — see "Cross-cutting findings" below).
+  - `redactor.py`: registry now removes Presidio's default
+    `PhoneRecognizer` after `load_predefined_recognizers`.
+  - `tests/test_recognizers.py`: 18 new tests for the regex fixes.
+  - `tests/test_pii_battery.py`: new file, 49 tests.
+  - `RECOGNITION_AUDIT.md`: new audit report.
 
-The most recent pushed commit is `f846710` (deep-test pass). Anything
-beyond that on disk has not been pushed yet — including this CLAUDE.md
-update. **First action of next session: review the diff, commit, push.**
+The most recent pushed commit is `22729e5` (licensing + particle trim).
+The audit above is uncommitted. **First action of next session: review
+the diff, commit, push.**
+
+**Cross-cutting finding from this audit (read before adding more
+recognizers):**
+
+Presidio's `LemmaContextAwareEnhancer` lemmatizes surrounding-text words
+via spaCy before comparing them to the recognizer's context list. The
+context list itself is NOT lemmatized — comparison is exact-string. We
+had `"routing"` in the list, but spaCy lemmatizes `"Routing"` → `"route"`,
+so no match, no boost, the routing recognizer stayed below threshold and
+got crowded out by DATE_TIME. **When you write a context word in a
+recognizer, put the lemma form**, optionally alongside the bare form.
+Verbs: use the base form (`route`, not `routing`; `live`, not `lives`).
+Nouns: usually fine as-is. If unsure, do a quick `spacy.load(...)("your
+word")[0].lemma_` check.
 
 **Where testing stands:**
 
@@ -337,62 +369,62 @@ deny-list are the safety nets.
 
 ## Open work (prioritized for next session)
 
-Items 1–3 are quick wins directly tied to issues spotted in the first Mac
-test pass. 4–6 are improvements to consider after 1–3.
+Items 1–4 from the original handoff are **closed in this session.** See
+`RECOGNITION_AUDIT.md` for the full report. The remaining items are
+re-numbered below.
 
-### 1. Name particles in the first-name trim
+### Closed in 2026-05-29 audit pass
 
-**Problem:** Multi-word names with Dutch/German/Spanish particles get
-trimmed too aggressively. "Lars van der Berg" → output is "Lars van der
-`<PERSON>`" instead of "Lars `<PERSON>`". Same for "Mary del Rio", "Hans
-von Trapp", etc.
+* ~~**1. Name particles in the first-name trim.**~~ Shipped. See
+  `redactor._enforce_no_first_names` and
+  `tests/test_redactor.py::TestNameParticles` (8 tests).
+* ~~**2. Account vs Routing collision on 9-digit numbers.**~~ Shipped.
+  Account regex tightened to `\b(?:\d{6,8}|\d{10,17})\b`. Tests in
+  `tests/test_recognizers.py::TestRoutingVsAccountCollision`. **Known
+  downstream gap:** a real 9-digit account number with only "account"
+  context (no "routing" nearby) now leaks. See item 1 below.
+* ~~**3. ZIP code recognizer.**~~ Shipped. `US_ZIP` patterns in
+  `recognizers.py` (two-layer: state-prefix high confidence + bare ZIP
+  with context). Tagged `LOCATION`. Tests in
+  `tests/test_recognizers.py::TestZipRegex` and
+  `tests/test_pii_battery.py::TestZipCodes`.
+* ~~**4. Phone-number false positives on bare numerics.**~~ Shipped.
+  Presidio's default `PhoneRecognizer` is removed from the registry in
+  `redactor._build_analyzer`; our `UsFormattedPhoneRecognizer` only
+  matches phone-shaped formatting. Tests in
+  `tests/test_recognizers.py::TestPhoneRegex` and
+  `tests/test_pii_battery.py::TestPhoneNumbers`.
 
-**Fix:** In `_enforce_no_first_names()`, when trimming to the last
-token, walk backwards past any common particle tokens and include them
-in the trimmed span. Particle list to consider: `van, von, der, den,
-de, del, di, da, la, le, el, al, bin, ben, ibn, mac, mc, o', fitz, st,
-saint`. Lowercase comparison, strip trailing periods.
+### Newly identified, prioritized
 
-### 2. Account vs Routing collision on 9-digit numbers
+* ~~**9-digit-account leak when only "account" context is present.**~~
+  Closed in the same audit pass: `account` / `acct` added to
+  `ROUTING_CONTEXT`. The test that was xfail now passes; the value gets
+  redacted as `<US_BANK_ROUTING>` (mislabeling-not-leak, per policy).
+* ~~**SSNs starting with `000` leak.**~~ Closed: new
+  `UsSsnLiteralShapeRecognizer` catches any `\d{3}-\d{2}-\d{4}` shape
+  regardless of SSA validity (low score 0.4 so real Presidio US_SSN
+  hits still win).
+* ~~**Address detection riders (units).**~~ Closed:
+  `US_STREET_ADDRESS_PATTERN` now absorbs an optional
+  `Apt | Apartment | Suite | Ste | Unit | Rm | Room | Floor | Fl |
+  Bldg | Building | #` rider. Rider is anchored AFTER the street suffix
+  so `Suite 100 of this report` cannot trigger.
 
-**Problem:** Routing numbers are 9 digits. Our account-number regex is
-6–17 digits — also matches 9-digit. When both fire, the wrong tag often
-wins, leading to `<US_BANK_ACCOUNT>` on what should be
-`<US_BANK_ROUTING>` (or vice versa). Observed in the test doc.
+### 1. DATE_TIME crowding out routing/account labels
 
-**Fix:** Tighten the account regex to skip 9 specifically:
-`\b(\d{6,8}|\d{10,17})\b`. Routing then owns the 9-digit shape
-unambiguously. Behavioral change is invisible to the user except that
-tags become accurate. Add a regression test.
+**Problem:** spaCy NER tags long digit runs as `DATE_TIME` at score
+0.85. Routing/account context-boosted scores top out around 0.65 with
+the lemma fix. On overlap, anonymization picks `DATE_TIME` and the
+output shows `<DATE_TIME>` instead of `<US_BANK_ROUTING>`. The value
+IS redacted; the label is wrong.
 
-### 3. ZIP code recognizer
+**Fix options:** raise routing's base score to 0.55 so boosted score
+hits 0.9 (accepting false positives on bare 9-digit strings), OR drop
+`DATE_TIME` from `DEFAULT_ENTITIES` (accepting that real dates like
+"January 5, 2024" leak). Policy call — ask the firm.
 
-**Problem:** `Newark NJ 07102` — spaCy catches `Newark NJ` as LOCATION,
-the ZIP `07102` slips through.
-
-**Fix:** Add `US_ZIP` recognizer in `recognizers.py`:
-* Pattern: `\b\d{5}(?:-\d{4})?\b`, score ~0.3, context words: `zip,
-  postal, postcode`. Also boost when preceded by a 2-letter all-caps
-  state abbreviation.
-* Tag as `LOCATION` (consistent with addresses) OR a new `US_ZIP` tag
-  if the firm prefers per-type accounting. Default to `LOCATION` for
-  output consistency.
-* Add `tests/test_recognizers.py` cases including the
-  `07102` → captured, plus a `12345 employees` negative-case test.
-
-### 4. Phone-number false positives on bare numerics
-
-**Problem:** Presidio's predefined `UsPhoneRecognizer` is permissive
-enough that a bare 10-digit account number can be tagged
-`<PHONE_NUMBER>`. The data is redacted but mislabeled.
-
-**Fix:** Either (a) raise the score threshold specifically for
-PHONE_NUMBER by overriding the predefined recognizer with one that
-requires phone-shaped formatting (parens, dashes, dots), or (b) drop
-the very-weak PHONE_NUMBER patterns from the predefined recognizer.
-Option (a) is safer. Validate against the engagement-letter test doc.
-
-### 5. Cross-paragraph context for DOCX
+### 2. Cross-paragraph context for DOCX (deferred)
 
 **Problem:** A doc reading `"account number:\n0048291756"` across two
 paragraphs loses the context word — per-paragraph analysis can't see
@@ -403,19 +435,7 @@ analysis. Higher regression risk; only worth doing if the firm's real
 docs actually show this pattern. **Do not implement unless we see it in
 test docs.**
 
-### 6. Address detection riders (units, ZIP, state)
-
-**Problem:** My address pattern catches `123 Main Street` but not the
-trailing `Apt 4B` or `, NJ 07102` part. spaCy catches city/state
-separately.
-
-**Fix:** Extend `US_STREET_ADDRESS_PATTERN` (or add a second pattern)
-to optionally consume `(?:,?\s+(?:Apt|Apartment|Suite|Ste|Unit|#)\s*\S+)`
-and a trailing `,?\s+[A-Z]{2}\s+\d{5}` rider. Watch for false positives
-on `Suite 100 of` patterns. If (3) lands first, the ZIP recognizer
-already handles the trailing ZIP, so this becomes smaller in scope.
-
-### 7. Windows VM test pass
+### 3. Windows VM test pass
 
 **Outstanding from the start.** Build a fresh zip with
 `scripts/package.sh`, transfer to a Windows VM, run `setup_once.bat`

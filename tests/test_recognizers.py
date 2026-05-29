@@ -15,9 +15,12 @@ from firm_config import FIRM_NAMES
 from recognizers import (
     BANK_ACCT_PATTERN,
     EIN_PATTERN,
+    PHONE_PATTERN,
     PO_BOX_PATTERN,
     ROUTING_PATTERN,
+    STATE_ZIP_PATTERN,
     US_STREET_ADDRESS_PATTERN,
+    ZIP_PATTERN,
     build_always_redact_recognizer,
     build_firm_names_recognizer,
 )
@@ -51,7 +54,7 @@ class TestRoutingRegex:
 
 class TestBankAcctRegex:
     def test_matches_typical_account(self):
-        # 6-17 digits inclusive.
+        # 6-8 OR 10-17 digits (9 excluded; owned by routing).
         assert "123456" in _matches(BANK_ACCT_PATTERN, "Acct 123456")
         assert "12345678901234567" in _matches(
             BANK_ACCT_PATTERN, "Acct 12345678901234567"
@@ -59,6 +62,101 @@ class TestBankAcctRegex:
 
     def test_rejects_too_short(self):
         assert _matches(BANK_ACCT_PATTERN, "12345") == []
+
+    def test_excludes_9_digits(self):
+        # Open Work #2: 9-digit numbers are owned exclusively by the
+        # routing recognizer. The account regex must NOT match exactly 9.
+        assert _matches(BANK_ACCT_PATTERN, "123456789") == []
+        # Surrounding text shouldn't help -- still no match.
+        assert _matches(BANK_ACCT_PATTERN, "Acct 123456789 here") == []
+
+    def test_8_digits_still_matches(self):
+        # Boundary check on the lower half of the range.
+        assert "12345678" in _matches(BANK_ACCT_PATTERN, "Acct 12345678")
+
+    def test_10_digits_still_matches(self):
+        # Boundary check on the upper half of the range.
+        assert "1234567890" in _matches(BANK_ACCT_PATTERN, "Acct 1234567890")
+
+
+class TestRoutingVsAccountCollision:
+    """Open Work #2 regression: a 9-digit number must tag ONLY as routing,
+    never as account. We test both patterns in isolation against the same
+    9-digit value.
+    """
+
+    def test_routing_pattern_owns_9_digits(self):
+        # Made-up fake routing number -- NOT a real ABA value.
+        assert _matches(ROUTING_PATTERN, "Routing 581739462") == ["581739462"]
+
+    def test_account_pattern_skips_9_digits(self):
+        assert _matches(BANK_ACCT_PATTERN, "Account 581739462") == []
+
+
+class TestZipRegex:
+    """Open Work #3: ZIP recognition for the 'NJ 07102' shape that spaCy
+    drops and the street-address regex can't catch.
+    """
+
+    def test_state_prefix_pattern_matches_5_digit(self):
+        # Lookbehind keeps only the ZIP itself in the match (not the state).
+        assert "07102" in _matches(STATE_ZIP_PATTERN, "Newark NJ 07102")
+
+    def test_state_prefix_pattern_matches_zip_plus_four(self):
+        assert "07102-1234" in _matches(STATE_ZIP_PATTERN, "Newark NJ 07102-1234")
+
+    def test_state_prefix_pattern_ignores_no_state(self):
+        # Without the 2-letter state prefix, this pattern shouldn't fire.
+        assert _matches(STATE_ZIP_PATTERN, "ZIP code 07102") == []
+
+    def test_bare_zip_pattern_matches(self):
+        # Lower-score pattern; the recognizer relies on context to surface it.
+        assert "07102" in _matches(ZIP_PATTERN, "ZIP 07102")
+        assert "07102-1234" in _matches(ZIP_PATTERN, "Code 07102-1234")
+
+    def test_bare_zip_pattern_ignores_4_or_6_digits(self):
+        assert _matches(ZIP_PATTERN, "Code 1234") == []
+        assert _matches(ZIP_PATTERN, "Item #123456 list") == []
+
+
+class TestPhoneRegex:
+    """Open Work #4: phone regex must require formatting (parens/dashes/
+    dots/spaces). Bare 10-digit strings must NOT match.
+    """
+
+    def test_dashed_phone_matches(self):
+        assert "415-555-0123" in _matches(PHONE_PATTERN, "Call 415-555-0123")
+
+    def test_dotted_phone_matches(self):
+        assert "415.555.0123" in _matches(PHONE_PATTERN, "Call 415.555.0123")
+
+    def test_paren_phone_matches(self):
+        # Parens around area code, space then exchange.
+        assert "(415) 555-0123" in _matches(PHONE_PATTERN, "Call (415) 555-0123")
+
+    def test_country_code_phone_matches(self):
+        assert _matches(PHONE_PATTERN, "Call +1 415-555-0123")
+
+    def test_phone_with_extension(self):
+        # The extension is OPTIONAL, so we just check the base shape captures.
+        # The match may or may not include "x42" depending on regex greediness;
+        # the important thing is the phone shape is detected.
+        matches = _matches(PHONE_PATTERN, "Call 415-555-0123 x42")
+        assert any("415-555-0123" in m for m in matches)
+
+    def test_bare_10_digit_does_not_match(self):
+        # The KEY regression: a bare 10-digit run is NOT a phone number.
+        assert _matches(PHONE_PATTERN, "Call 4155550123 today") == []
+
+    def test_seven_digit_does_not_match(self):
+        # Too ambiguous to flag.
+        assert _matches(PHONE_PATTERN, "Dial 555-0123") == []
+
+    def test_inside_longer_digit_run_does_not_match(self):
+        # A 10-formatted-digit pattern inside "id=14155550123" should NOT match
+        # -- the leading "1" before "415..." would otherwise consume into the
+        # area code. Our (?<!\d) lookbehind blocks this.
+        assert _matches(PHONE_PATTERN, "id=14155550123end") == []
 
 
 class TestUsStreetAddressRegex:
