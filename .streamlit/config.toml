@@ -1,0 +1,22 @@
+# Local-only operation. Keep Streamlit from phoning home for ANY reason.
+# Per CLAUDE.md: no outbound network calls at runtime. This config is part of
+# that guarantee -- do not enable telemetry/usage stats/updates here.
+
+[browser]
+gatherUsageStats = false
+
+[server]
+# Bind only to localhost. The app must not be reachable from other machines.
+address = "127.0.0.1"
+headless = true
+# Streamlit's CORS/XSRF protections are fine for local-only use.
+enableCORS = true
+enableXsrfProtection = true
+
+[global]
+# Keep the runtime quiet. No "show warning when running in dev mode" noise.
+showWarningOnDirectExecution = false
+
+[theme]
+base = "light"
+primaryColor = "#C00000"

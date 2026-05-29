@@ -1,0 +1,32 @@
+# venv
+.venv/
+venv/
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Never commit real client docs or anything that could contain real PII.
+# Test fixtures (synthetic data only) live in tests/fixtures/ and ARE tracked.
+/uploads/
+/output/
+*.real.*
+
+# The vendored spaCy model is 620 MB and contains a 588 MB vectors file that
+# exceeds GitHub's 100 MB per-file limit. We do NOT track it in git. It ships
+# with the distribution zip instead (per CLAUDE.md "Packaging"). The folder
+# must still be present on disk for the app to run -- redactor.py loads it
+# by path and refuses to start if missing.
+en_core_web_lg/

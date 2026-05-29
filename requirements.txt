@@ -1,0 +1,18 @@
+# Pinned, minimal. Everything must work offline at runtime.
+# No package here is permitted to phone home from the running app.
+
+# --- Core redaction engine ---
+presidio-analyzer==2.2.355
+presidio-anonymizer==2.2.355
+spacy==3.7.5
+
+# --- File extractors ---
+pdfplumber==0.11.4
+python-docx==1.1.2
+openpyxl==3.1.5
+
+# --- UI ---
+streamlit==1.39.0
+
+# --- Dev / test only (safe to keep installed; not invoked at runtime) ---
+pytest==8.3.3
