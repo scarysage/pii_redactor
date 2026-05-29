@@ -158,7 +158,13 @@ def build_firm_names_recognizer() -> PatternRecognizer | None:
     if not FIRM_NAMES:
         return None
     # re.escape handles names with regex-special chars (apostrophes, hyphens).
-    regex = r"\b(?:" + "|".join(re.escape(n) for n in FIRM_NAMES) + r")\b"
+    # We use lookarounds rather than \b so terms ending in punctuation still
+    # match cleanly -- see redactor._match_user_terms for the same rationale.
+    regex = (
+        r"(?<!\w)(?:"
+        + "|".join(re.escape(n) for n in FIRM_NAMES)
+        + r")(?!\w)"
+    )
     return PatternRecognizer(
         supported_entity="PERSON",
         name="FirmNamesRecognizer",
@@ -181,7 +187,11 @@ def build_always_redact_recognizer() -> PatternRecognizer | None:
     """
     if not ALWAYS_REDACT:
         return None
-    regex = r"\b(?:" + "|".join(re.escape(s) for s in ALWAYS_REDACT) + r")\b"
+    regex = (
+        r"(?<!\w)(?:"
+        + "|".join(re.escape(s) for s in ALWAYS_REDACT)
+        + r")(?!\w)"
+    )
     return PatternRecognizer(
         supported_entity="REDACTED",
         name="AlwaysRedactRecognizer",

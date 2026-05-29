@@ -268,11 +268,21 @@ def _all_extra_terms() -> list[str]:
 
 
 def _match_user_terms(text: str, terms: list[str]) -> list[Finding]:
-    """Whole-word, case-insensitive literal match for each term in `terms`."""
+    """Whole-word, case-insensitive literal match for each term in `terms`.
+
+    We use (?<!\\w)...(?!\\w) rather than \\b at the boundaries so that
+    terms which start or end with non-word characters (e.g. "A.C-12$" or
+    "$300") still match correctly. \\b requires a word/non-word transition,
+    which fails when the term itself ends in punctuation surrounded by more
+    non-word characters.
+    """
     if not terms:
         return []
-    # Alternation across all terms; re.escape handles regex specials.
-    pattern = r"\b(?:" + "|".join(re.escape(t) for t in terms) + r")\b"
+    pattern = (
+        r"(?<!\w)(?:"
+        + "|".join(re.escape(t) for t in terms)
+        + r")(?!\w)"
+    )
     findings: list[Finding] = []
     for m in re.finditer(pattern, text, flags=re.IGNORECASE):
         findings.append(Finding(

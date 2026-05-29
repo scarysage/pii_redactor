@@ -26,7 +26,7 @@ import streamlit as st
 
 import redactor
 from extractors import ExtractionResult, redact_file
-from redactor import Finding
+from preview import render_preview
 from user_additions import (
     add_user_addition,
     load_user_additions,
@@ -45,76 +45,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Style for redacted spans in the live preview. Matches the in-document style
-# used in DOCX/XLSX output (see extractors.REDACT_COLOR_HEX).
-REVIEW_STYLE = "font-weight:700; color:#C00000;"
-
 SUPPORTED_TYPES = ["txt", "pdf", "docx", "xlsx"]
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 def _state_key(filename: str, suffix: str) -> str:
     return f"{filename}::{suffix}"
-
-
-def _esc(s: str) -> str:
-    """Minimal HTML escape so user text does not break the preview pane."""
-    return (
-        s.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
-
-
-def _render_preview(
-    text: str, findings: list[Finding], keep_indices: list[int]
-) -> str:
-    """
-    Build the HTML for the review preview. Redacted spans are wrapped in a
-    styled <span> with the `<TYPE>` tag; kept spans are shown verbatim (no
-    styling) so the user sees exactly what survives into the output.
-    """
-    # Defensive: text could be huge. Cap the preview at ~12 KB so the browser
-    # doesn't grind. The download still gets the full redacted file.
-    LIMIT = 12_000
-    truncated = len(text) > LIMIT
-    if truncated:
-        text = text[:LIMIT]
-        findings = [f for f in findings if f.end <= LIMIT]
-
-    keep = set(keep_indices)
-    sorted_pairs = sorted(
-        enumerate(findings), key=lambda kv: (kv[1].start, kv[1].end)
-    )
-
-    out: list[str] = []
-    cursor = 0
-    last_end = -1
-    for idx, f in sorted_pairs:
-        if f.start < last_end:
-            # Overlapping with a finding we already rendered. Skip.
-            continue
-        if f.start > cursor:
-            out.append(_esc(text[cursor:f.start]))
-        if idx in keep:
-            out.append(_esc(text[f.start:f.end]))
-        else:
-            out.append(
-                f"<span style='{REVIEW_STYLE}'>&lt;{_esc(f.entity_type)}&gt;</span>"
-            )
-        cursor = f.end
-        last_end = f.end
-    if cursor < len(text):
-        out.append(_esc(text[cursor:]))
-    if truncated:
-        out.append(
-            "<div style='color:#999; margin-top:0.5rem;'>"
-            "[preview truncated -- download to see full file]</div>"
-        )
-    return "".join(out)
 
 
 # ---------------------------------------------------------------------------
@@ -315,7 +250,7 @@ for upload in uploaded:
 
         with right:
             st.markdown("**Redacted preview**")
-            preview = _render_preview(
+            preview = render_preview(
                 result.text, result.findings, keep_indices
             )
             st.markdown(
