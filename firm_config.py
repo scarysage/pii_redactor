@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 ================================================================================
 firm_config.py  --  THE FILE THE FIRM EDITS

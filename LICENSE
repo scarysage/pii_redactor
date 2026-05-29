@@ -1,0 +1,60 @@
+PII Redactor — Commercial License Agreement
+
+Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
+
+1. Grant of license.
+   Subject to payment of the applicable license fee and the terms below,
+   the Licensor grants the named Licensee a non-exclusive, non-transferable,
+   non-sublicensable license to install and use the PII Redactor software
+   ("the Software") on computers owned or controlled by the Licensee, for
+   the Licensee's internal business purposes only.
+
+2. Restrictions.
+   The Licensee may not:
+     (a) redistribute, resell, sublicense, rent, lease, or lend the
+         Software to any third party;
+     (b) modify, reverse engineer, decompile, or create derivative works
+         of the Software, except as expressly permitted by applicable
+         law that cannot be contractually waived;
+     (c) remove or alter any copyright, trademark, or other proprietary
+         notices contained in the Software;
+     (d) use the Software to provide a service to third parties
+         (including as a hosted, managed, or "SaaS" offering) without
+         a separate written agreement with the Licensor.
+
+3. Third-party components.
+   The Software incorporates third-party open-source components. Those
+   components are licensed to the Licensee under their own terms, which
+   are reproduced in THIRD_PARTY_LICENSES.md and which take precedence
+   over this Agreement for those components only.
+
+4. No warranty.
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, AND
+   NON-INFRINGEMENT. THE LICENSEE IS SOLELY RESPONSIBLE FOR REVIEWING
+   THE SOFTWARE'S OUTPUT BEFORE RELYING ON IT. THE SOFTWARE IS A
+   DETECTION AID, NOT A GUARANTEE THAT ALL PERSONAL OR SENSITIVE
+   INFORMATION HAS BEEN REMOVED.
+
+5. Limitation of liability.
+   TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT WILL
+   THE LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+   CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS,
+   REVENUE, DATA, OR DATA USE, ARISING OUT OF OR IN CONNECTION WITH
+   THIS AGREEMENT OR THE USE OF THE SOFTWARE, EVEN IF ADVISED OF THE
+   POSSIBILITY OF SUCH DAMAGES. THE LICENSOR'S TOTAL CUMULATIVE
+   LIABILITY UNDER THIS AGREEMENT WILL NOT EXCEED THE LICENSE FEES
+   PAID BY THE LICENSEE FOR THE SOFTWARE IN THE TWELVE (12) MONTHS
+   PRECEDING THE EVENT GIVING RISE TO THE CLAIM.
+
+6. Termination.
+   This license terminates automatically if the Licensee breaches any
+   term of this Agreement. On termination, the Licensee must cease all
+   use of the Software and destroy all copies in its possession.
+
+7. Governing law.
+   This Agreement is governed by the laws of the State of New Jersey,
+   United States, without regard to its conflict-of-laws principles.
+
+For licensing inquiries: vincent.shahinllari@gmail.com

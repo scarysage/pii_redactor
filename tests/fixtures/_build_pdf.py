@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 One-shot builder for tests/fixtures/sample_with_pii.pdf.
 

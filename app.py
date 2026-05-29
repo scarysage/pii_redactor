@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Streamlit UI: upload -> auto-redact -> review screen -> download.
 

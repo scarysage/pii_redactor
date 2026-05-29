@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Custom Presidio regex recognizers for entities Presidio does not catch out of the box.
 

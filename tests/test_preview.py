@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Tests for preview.render_preview -- the HTML produced by the review pane.
 

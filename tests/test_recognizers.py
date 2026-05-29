@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Unit tests for the custom Presidio recognizers in recognizers.py.
 

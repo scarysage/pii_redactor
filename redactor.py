@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Redaction engine: wraps Presidio analyzer + anonymizer.
 
@@ -207,7 +208,20 @@ def analyze(text: str, entities: Iterable[str] | None = None) -> list[Finding]:
 # First-name policy
 # ---------------------------------------------------------------------------
 
-_LAST_TOKEN_RE = re.compile(r"\S+$")
+_TOKEN_SPAN_RE = re.compile(r"\S+")
+
+# Common multi-part surname particles (Dutch/German/Spanish/Italian/Irish/etc.).
+# When a PERSON span ends in "<particle(s)> <surname>" we want the redacted
+# region to cover the particles too, so "Lars van der Berg" trims to
+# "Lars <PERSON>" rather than "Lars van der <PERSON>". Comparison is
+# lowercased and trailing periods (e.g. "St.") are stripped.
+_NAME_PARTICLES = {
+    "van", "von", "der", "den", "de", "del", "di", "da",
+    "la", "le", "el", "al",
+    "bin", "ben", "ibn",
+    "mac", "mc", "o'", "fitz",
+    "st", "saint",
+}
 
 
 def _enforce_no_first_names(findings: list[Finding]) -> list[Finding]:
@@ -218,11 +232,16 @@ def _enforce_no_first_names(findings: list[Finding]) -> list[Finding]:
           -> keep the full span. These are curated surnames the firm wants
           redacted every time, even on their own.
         * Other PERSON spans with multiple whitespace-separated tokens
-          -> shrink the span to cover only the last token (assumed surname).
-          Output goes from "Jane Doe" to "Jane <PERSON>".
+          -> shrink the span to cover the last token plus any preceding
+          surname particles ("van", "der", "de", "St.", ...). Output goes
+          from "Jane Doe" to "Jane <PERSON>", and from "Lars van der Berg"
+          to "Lars <PERSON>".
         * Other PERSON spans that are a single token -> drop. We can't tell
           first from last without context, and the firm directive is to err
           on the side of leaving first names alone.
+        * If trimming would consume every token in the span (e.g. "Van
+          Halen" where "Van" is itself a particle), drop the whole finding
+          rather than redact what might be a first name.
         * Non-PERSON findings -> unchanged.
     """
     firm_lower = {n.lower() for n in FIRM_NAMES}
@@ -236,24 +255,38 @@ def _enforce_no_first_names(findings: list[Finding]) -> list[Finding]:
             out.append(f)
             continue
 
-        # Where is the last whitespace-separated token within f.text?
-        m = _LAST_TOKEN_RE.search(f.text)
-        if m is None:
+        tokens = list(_TOKEN_SPAN_RE.finditer(f.text))
+        if not tokens:
             # Defensive: empty or whitespace-only -- drop.
             continue
 
-        # Single-token span (last token == whole span) -- drop, per policy.
-        if m.start() == 0:
+        # Single-token span -- drop, per policy.
+        if len(tokens) == 1:
             continue
 
-        # Multi-token: shrink to the last token.
-        new_start = f.start + m.start()
+        # Start with the last token, then walk backwards as long as the
+        # immediately preceding token looks like a surname particle.
+        start_idx = len(tokens) - 1
+        while start_idx > 0:
+            prev = tokens[start_idx - 1].group(0).rstrip(".").lower()
+            if prev in _NAME_PARTICLES:
+                start_idx -= 1
+            else:
+                break
+
+        # If we walked all the way back to the first token, there's no
+        # first name to preserve -- drop, matching the single-token policy.
+        if start_idx == 0:
+            continue
+
+        new_text_start = tokens[start_idx].start()
+        new_start = f.start + new_text_start
         out.append(Finding(
             start=new_start,
             end=f.end,
             entity_type=f.entity_type,
             score=f.score,
-            text=m.group(0),
+            text=f.text[new_text_start:],
         ))
     return out
 

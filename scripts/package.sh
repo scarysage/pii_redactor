@@ -85,6 +85,8 @@ REQUIRED=(
     "$REPO_NAME/START_HERE.bat"
     "$REPO_NAME/en_core_web_lg/config.cfg"
     "$REPO_NAME/.streamlit/config.toml"
+    "$REPO_NAME/LICENSE"
+    "$REPO_NAME/THIRD_PARTY_LICENSES.md"
 )
 MISSING=0
 for f in "${REQUIRED[@]}"; do

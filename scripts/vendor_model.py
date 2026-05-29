@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Dev-only: download the spaCy en_core_web_lg model and copy its data into
 ./en_core_web_lg/ at the repo root so redactor.py can load it by path.

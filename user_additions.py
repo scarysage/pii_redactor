@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Read/write helpers for `user_additions.txt` -- the file that stores literal
 strings the UI's "Add a specific item to redact -> Save permanently" button

@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Render the live HTML preview shown in the review pane of the Streamlit UI.
 

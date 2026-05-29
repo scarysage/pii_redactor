@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Defensive: if the vendored spaCy model is missing, the engine must refuse to
 start with a clear error -- NOT silently attempt to download it.

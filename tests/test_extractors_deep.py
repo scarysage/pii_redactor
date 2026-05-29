@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Deeper coverage for extractors.py beyond the basic round-trips.
 

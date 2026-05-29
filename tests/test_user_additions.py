@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Tests for user_additions.py (the persistent user-added redaction list).
 

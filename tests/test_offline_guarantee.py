@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Vincent Shahinllari. All rights reserved.
 """
 Network-isolation test: prove the redaction path makes NO outbound network
 calls.
