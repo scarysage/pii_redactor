@@ -18,16 +18,20 @@ enableXsrfProtection = true
 showWarningOnDirectExecution = false
 
 [theme]
-# "Quiet Professional" palette: calm navy for buttons/links, near-white
-# canvas, subtle slate alt-bg for grouped panels. The deep-red #C00000
+# "Midnight" palette: near-black canvas, warm cream text, amber primary
+# accent so CTA buttons read against the dark bg. The deep-red #C00000
 # is RESERVED -- it only appears on redacted content in DOCX/XLSX
 # outputs and the live preview, so it stays a meaningful signal rather
 # than another piece of UI chrome.
-base = "light"
-primaryColor = "#1E3A5F"             # navy (buttons, links, focus rings)
-backgroundColor = "#FFFFFF"          # main canvas
-secondaryBackgroundColor = "#F8FAFC" # subtle stripe for st.container panels
-textColor = "#0F172A"                # slate-900
+#
+# Setting base = "dark" gives Streamlit the right starting point for
+# input fields, expanders, and other internal components so we only
+# need to override the canvas + accent colors below.
+base = "dark"
+primaryColor = "#F59E0B"             # amber-500 (CTA buttons, focus rings)
+backgroundColor = "#0F172A"          # slate-900 (main canvas)
+secondaryBackgroundColor = "#1E293B" # slate-800 (panels, expanders)
+textColor = "#F8FAFC"                # slate-50 (primary text)
 # Use the system sans-serif stack -- bundled fonts only, no Google Fonts
 # fetch (offline guarantee).
 font = "sans serif"

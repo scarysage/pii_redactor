@@ -56,24 +56,58 @@ def _state_key(filename: str, suffix: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Visual style ("Quiet Professional" -- navy + slate, generous whitespace)
+# Visual style ("Midnight" -- near-black canvas, cream text, amber CTA)
 # ---------------------------------------------------------------------------
 # All CSS lives inline here so the app stays offline-safe (no external
 # stylesheet fetch). Streamlit's native theme handles the basic palette;
-# this block tightens button shape, hover behavior, vertical rhythm, and
-# adds the offline-status badge in the top-right.
+# this block tightens button shape, hover behavior, vertical rhythm,
+# adds the offline-status badge, and paints a faint redaction-bar
+# pattern across the page background as a thematic watermark.
 #
 # If you tweak the palette in .streamlit/config.toml, update the variables
 # below to match -- they are duplicated intentionally so the CSS works even
 # if Streamlit's theme variables aren't exposed via CSS custom properties
 # in the version we ship with.
-_NAVY = "#1E3A5F"
-_NAVY_HOVER = "#15294A"
-_SLATE_900 = "#0F172A"
-_SLATE_500 = "#64748B"
-_SLATE_200 = "#E2E8F0"
-_OFFLINE_GREEN = "#15803D"
-_BG_PANEL = "#F8FAFC"
+_BG_MAIN = "#0F172A"        # slate-900 (page background)
+_BG_PANEL = "#1E293B"       # slate-800 (expander, preview panel, alt bg)
+_BG_PANEL_2 = "#334155"     # slate-700 (subtle panel divider)
+_TEXT_PRIMARY = "#F8FAFC"   # slate-50 (body text)
+_TEXT_MUTED = "#94A3B8"     # slate-400 (captions, helper text)
+_BORDER = "#334155"         # slate-700 (1px borders on dark)
+_AMBER = "#F59E0B"          # amber-500 (primary CTA)
+_AMBER_HOVER = "#D97706"    # amber-600 (CTA hover)
+_OFFLINE_GREEN = "#34D399"  # emerald-400 (brighter green for dark bg)
+_OFFLINE_GREEN_BG = "rgba(16,185,129,0.12)"  # emerald-500 @ 12% alpha
+_OFFLINE_GREEN_BORDER = "rgba(52,211,153,0.40)"
+
+# Background watermark: faint redaction bars tiled across the page. Inline
+# SVG data URI so nothing is fetched at runtime. fill-opacity is small
+# enough (~6% white on slate-900) that the bars register as texture, not
+# content. Pattern is intentionally irregular so tiled seams don't read
+# as obvious grid lines.
+_REDACTION_BAR_SVG = (
+    "data:image/svg+xml;utf8,"
+    "<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180' "
+    "viewBox='0 0 300 180'>"
+    "<g fill='%23FFFFFF' fill-opacity='0.06'>"
+    "<rect x='10' y='28' width='80' height='8' rx='1'/>"
+    "<rect x='100' y='28' width='40' height='8' rx='1'/>"
+    "<rect x='150' y='28' width='60' height='8' rx='1'/>"
+    "<rect x='220' y='28' width='50' height='8' rx='1'/>"
+    "<rect x='30' y='68' width='50' height='8' rx='1'/>"
+    "<rect x='90' y='68' width='90' height='8' rx='1'/>"
+    "<rect x='190' y='68' width='40' height='8' rx='1'/>"
+    "<rect x='240' y='68' width='45' height='8' rx='1'/>"
+    "<rect x='0' y='108' width='70' height='8' rx='1'/>"
+    "<rect x='80' y='108' width='40' height='8' rx='1'/>"
+    "<rect x='130' y='108' width='80' height='8' rx='1'/>"
+    "<rect x='220' y='108' width='60' height='8' rx='1'/>"
+    "<rect x='40' y='148' width='60' height='8' rx='1'/>"
+    "<rect x='110' y='148' width='70' height='8' rx='1'/>"
+    "<rect x='190' y='148' width='50' height='8' rx='1'/>"
+    "<rect x='250' y='148' width='30' height='8' rx='1'/>"
+    "</g></svg>"
+)
 
 st.markdown(
     f"""
@@ -100,6 +134,18 @@ st.markdown(
           visibility: hidden !important;
       }}
 
+      /* --------------------------------------------------------------
+         PAGE BACKGROUND -- inline-SVG redaction-bar watermark on the
+         slate-900 canvas. The SVG is a data URI so nothing is fetched
+         at runtime (offline guarantee preserved).
+         -------------------------------------------------------------- */
+      .stApp {{
+          background-color: {_BG_MAIN} !important;
+          background-image: url("{_REDACTION_BAR_SVG}");
+          background-repeat: repeat;
+          background-attachment: fixed;
+      }}
+
       /* Tighter top padding -- Streamlit's default leaves a lot of dead space. */
       .main .block-container {{
           padding-top: 1.5rem;
@@ -113,7 +159,7 @@ st.markdown(
       h1 {{
           margin-top: 0 !important;
           margin-bottom: 0.25rem !important;
-          color: {_SLATE_900};
+          color: {_TEXT_PRIMARY};
           font-weight: 600;
           font-size: 2rem;
           letter-spacing: -0.015em;
@@ -123,18 +169,26 @@ st.markdown(
 
       /* Section headers (st.subheader / st.markdown bold) -- restrained. */
       h2, h3 {{
-          color: {_SLATE_900};
+          color: {_TEXT_PRIMARY};
           font-weight: 600;
           margin-top: 1.5rem;
       }}
 
-      /* Captions and helper text in muted slate. */
-      .stCaption, [data-testid="stCaptionContainer"] p {{
-          color: {_SLATE_500};
+      /* Body text inherits Streamlit's textColor, but reinforce here so
+         elements that render in different DOM contexts (markdown spans,
+         caption text inside expanders) stay legible on the dark canvas. */
+      p, label, span {{
+          color: {_TEXT_PRIMARY};
       }}
 
-      /* All Streamlit buttons: 6px radius, snappier hover. The native theme
-         already sets the navy color via primaryColor in config.toml. */
+      /* Captions and helper text in muted slate. */
+      .stCaption, [data-testid="stCaptionContainer"] p,
+      [data-testid="stCaptionContainer"] span {{
+          color: {_TEXT_MUTED} !important;
+      }}
+
+      /* All Streamlit buttons: 6px radius, snappier hover. The native
+         theme sets the amber primary via primaryColor in config.toml. */
       .stButton > button, .stDownloadButton > button {{
           border-radius: 6px;
           font-weight: 500;
@@ -146,26 +200,28 @@ st.markdown(
           transform: translateY(-1px);
       }}
 
-      /* DEFAULT (non-primary) buttons get a ghost / outlined treatment.
-         Streamlit doesn't reliably set a `kind="secondary"` attribute on
-         every button -- :not([kind="primary"]) catches both labeled
-         secondary buttons AND the default unmarked ones. */
+      /* DEFAULT (non-primary) buttons get a ghost / outlined treatment
+         tuned for the dark canvas. Streamlit doesn't reliably set a
+         `kind="secondary"` attribute on every button --
+         :not([kind="primary"]) catches both labeled secondary and the
+         default unmarked ones. */
       .stButton > button:not([kind="primary"]) {{
-          background-color: #FFFFFF !important;
-          color: {_SLATE_900} !important;
-          border: 1px solid {_SLATE_200} !important;
+          background-color: {_BG_PANEL} !important;
+          color: {_TEXT_PRIMARY} !important;
+          border: 1px solid {_BORDER} !important;
       }}
       .stButton > button:not([kind="primary"]):hover {{
-          background-color: {_BG_PANEL} !important;
-          border-color: {_NAVY} !important;
-          color: {_NAVY} !important;
+          background-color: {_BG_PANEL_2} !important;
+          border-color: {_AMBER} !important;
+          color: {_AMBER} !important;
       }}
 
-      /* Primary buttons (type="primary") get a deeper hover. */
+      /* Primary buttons (type="primary") get a deeper amber hover. */
       .stButton > button[kind="primary"]:hover,
       .stDownloadButton > button[kind="primary"]:hover {{
-          background-color: {_NAVY_HOVER} !important;
-          border-color: {_NAVY_HOVER} !important;
+          background-color: {_AMBER_HOVER} !important;
+          border-color: {_AMBER_HOVER} !important;
+          color: {_BG_MAIN} !important;
       }}
 
       /* Findings checkboxes: a touch more vertical breathing room so the
@@ -174,20 +230,22 @@ st.markdown(
           margin-bottom: 0.35rem;
       }}
 
-      /* Divider lines are thinner and softer than Streamlit's default. */
+      /* Divider lines blend into the dark canvas with a subtle slate. */
       hr {{
-          border-color: {_SLATE_200} !important;
+          border-color: {_BORDER} !important;
           margin: 1.25rem 0 !important;
       }}
 
-      /* The offline-status pill sitting top-right of the header. */
+      /* The offline-status pill sitting top-right of the header.
+         On the dark canvas we use an emerald-tinted background + brighter
+         text/dot so the pill stays readable but doesn't shout. */
       .pii-badge {{
           display: inline-flex;
           align-items: center;
           gap: 0.45rem;
           padding: 0.35rem 0.75rem;
-          background-color: #ECFDF5;
-          border: 1px solid #BBF7D0;
+          background-color: {_OFFLINE_GREEN_BG};
+          border: 1px solid {_OFFLINE_GREEN_BORDER};
           border-radius: 999px;
           color: {_OFFLINE_GREEN};
           font-size: 0.85rem;
@@ -200,9 +258,10 @@ st.markdown(
           height: 8px;
           border-radius: 50%;
           background-color: {_OFFLINE_GREEN};
+          box-shadow: 0 0 6px {_OFFLINE_GREEN};
       }}
       .pii-badge-sub {{
-          color: {_SLATE_500};
+          color: {_TEXT_MUTED};
           font-size: 0.78rem;
           margin-top: 0.25rem;
           text-align: right;
@@ -485,14 +544,19 @@ for upload in uploaded:
             preview = render_preview(
                 result.text, result.findings, keep_indices
             )
-            # Preview panel inherits the secondary-bg palette so it sits
-            # quietly inside the page; monospace keeps redacted-text spans
-            # from reflowing as the user toggles findings.
+            # Preview panel inherits the dark secondary-bg palette so it
+            # sits quietly inside the page; monospace keeps redacted-text
+            # spans from reflowing as the user toggles findings. The
+            # text color is forced to slate-50 so the unredacted content
+            # stays legible -- the redacted spans still get their #C00000
+            # styling from preview.render_preview, which now reads as a
+            # bright signal against the dark panel.
             st.markdown(
                 f"<div style='white-space:pre-wrap; font-family:ui-monospace, "
                 f"SFMono-Regular, Menlo, Consolas, monospace; "
-                f"background:{_BG_PANEL}; padding:1rem; "
-                f"border:1px solid {_SLATE_200}; "
+                f"background:{_BG_PANEL}; color:{_TEXT_PRIMARY}; "
+                f"padding:1rem; "
+                f"border:1px solid {_BORDER}; "
                 f"border-radius:8px; max-height:520px; overflow:auto; "
                 f"font-size:0.9rem; line-height:1.55;'>"
                 f"{preview}</div>",
