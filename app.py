@@ -78,6 +78,28 @@ _BG_PANEL = "#F8FAFC"
 st.markdown(
     f"""
     <style>
+      /* --------------------------------------------------------------
+         HIDE STREAMLIT'S BUILT-IN TOOLBAR (Deploy button + 3-dot menu)
+         --------------------------------------------------------------
+         This is non-negotiable for an offline-only tool:
+           * The "Deploy" button pushes to Streamlit Community Cloud,
+             which is a network operation and an out-of-scope feature
+             for a tool that promises local-only execution.
+           * The 3-dot main menu exposes "Get help" and "Report a bug"
+             links that hit streamlit.io over the network.
+           * The "Running" status widget is engine-internal noise that
+             confuses non-technical users.
+         Hiding the entire stHeader is the cleanest path -- nothing in
+         it serves an end user of an offline desktop tool. */
+      [data-testid="stHeader"],
+      [data-testid="stToolbar"],
+      [data-testid="stAppDeployButton"],
+      [data-testid="stMainMenu"],
+      [data-testid="stStatusWidget"] {{
+          display: none !important;
+          visibility: hidden !important;
+      }}
+
       /* Tighter top padding -- Streamlit's default leaves a lot of dead space. */
       .main .block-container {{
           padding-top: 1.5rem;
@@ -85,12 +107,18 @@ st.markdown(
           max-width: 1100px;
       }}
 
-      /* Title sits closer to the badge row. */
+      /* Title sits closer to the badge row. Explicit normalization so
+         Streamlit's default heading styles (which can vary between
+         theme versions) don't force uppercase / extreme letter-spacing. */
       h1 {{
           margin-top: 0 !important;
+          margin-bottom: 0.25rem !important;
           color: {_SLATE_900};
           font-weight: 600;
-          letter-spacing: -0.01em;
+          font-size: 2rem;
+          letter-spacing: -0.015em;
+          text-transform: none !important;
+          font-variant: normal !important;
       }}
 
       /* Section headers (st.subheader / st.markdown bold) -- restrained. */
@@ -111,29 +139,33 @@ st.markdown(
           border-radius: 6px;
           font-weight: 500;
           padding: 0.45rem 1rem;
-          transition: background-color 120ms ease, transform 80ms ease;
+          transition: background-color 120ms ease, transform 80ms ease,
+                      border-color 120ms ease, color 120ms ease;
       }}
       .stButton > button:hover, .stDownloadButton > button:hover {{
           transform: translateY(-1px);
       }}
 
+      /* DEFAULT (non-primary) buttons get a ghost / outlined treatment.
+         Streamlit doesn't reliably set a `kind="secondary"` attribute on
+         every button -- :not([kind="primary"]) catches both labeled
+         secondary buttons AND the default unmarked ones. */
+      .stButton > button:not([kind="primary"]) {{
+          background-color: #FFFFFF !important;
+          color: {_SLATE_900} !important;
+          border: 1px solid {_SLATE_200} !important;
+      }}
+      .stButton > button:not([kind="primary"]):hover {{
+          background-color: {_BG_PANEL} !important;
+          border-color: {_NAVY} !important;
+          color: {_NAVY} !important;
+      }}
+
       /* Primary buttons (type="primary") get a deeper hover. */
       .stButton > button[kind="primary"]:hover,
       .stDownloadButton > button[kind="primary"]:hover {{
-          background-color: {_NAVY_HOVER};
-          border-color: {_NAVY_HOVER};
-      }}
-
-      /* Secondary buttons: ghost style. */
-      .stButton > button[kind="secondary"] {{
-          background-color: #FFFFFF;
-          color: {_SLATE_900};
-          border: 1px solid {_SLATE_200};
-      }}
-      .stButton > button[kind="secondary"]:hover {{
-          background-color: {_BG_PANEL};
-          border-color: {_NAVY};
-          color: {_NAVY};
+          background-color: {_NAVY_HOVER} !important;
+          border-color: {_NAVY_HOVER} !important;
       }}
 
       /* Findings checkboxes: a touch more vertical breathing room so the
