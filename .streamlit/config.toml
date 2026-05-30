@@ -18,5 +18,16 @@ enableXsrfProtection = true
 showWarningOnDirectExecution = false
 
 [theme]
+# "Quiet Professional" palette: calm navy for buttons/links, near-white
+# canvas, subtle slate alt-bg for grouped panels. The deep-red #C00000
+# is RESERVED -- it only appears on redacted content in DOCX/XLSX
+# outputs and the live preview, so it stays a meaningful signal rather
+# than another piece of UI chrome.
 base = "light"
-primaryColor = "#C00000"
+primaryColor = "#1E3A5F"             # navy (buttons, links, focus rings)
+backgroundColor = "#FFFFFF"          # main canvas
+secondaryBackgroundColor = "#F8FAFC" # subtle stripe for st.container panels
+textColor = "#0F172A"                # slate-900
+# Use the system sans-serif stack -- bundled fonts only, no Google Fonts
+# fetch (offline guarantee).
+font = "sans serif"

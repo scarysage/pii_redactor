@@ -48,20 +48,164 @@ st.set_page_config(
 
 SUPPORTED_TYPES = ["txt", "pdf", "docx", "xlsx"]
 
+APP_VERSION = "v1.0"
+
 
 def _state_key(filename: str, suffix: str) -> str:
     return f"{filename}::{suffix}"
 
 
 # ---------------------------------------------------------------------------
-# Page body
+# Visual style ("Quiet Professional" -- navy + slate, generous whitespace)
+# ---------------------------------------------------------------------------
+# All CSS lives inline here so the app stays offline-safe (no external
+# stylesheet fetch). Streamlit's native theme handles the basic palette;
+# this block tightens button shape, hover behavior, vertical rhythm, and
+# adds the offline-status badge in the top-right.
+#
+# If you tweak the palette in .streamlit/config.toml, update the variables
+# below to match -- they are duplicated intentionally so the CSS works even
+# if Streamlit's theme variables aren't exposed via CSS custom properties
+# in the version we ship with.
+_NAVY = "#1E3A5F"
+_NAVY_HOVER = "#15294A"
+_SLATE_900 = "#0F172A"
+_SLATE_500 = "#64748B"
+_SLATE_200 = "#E2E8F0"
+_OFFLINE_GREEN = "#15803D"
+_BG_PANEL = "#F8FAFC"
+
+st.markdown(
+    f"""
+    <style>
+      /* Tighter top padding -- Streamlit's default leaves a lot of dead space. */
+      .main .block-container {{
+          padding-top: 1.5rem;
+          padding-bottom: 3rem;
+          max-width: 1100px;
+      }}
+
+      /* Title sits closer to the badge row. */
+      h1 {{
+          margin-top: 0 !important;
+          color: {_SLATE_900};
+          font-weight: 600;
+          letter-spacing: -0.01em;
+      }}
+
+      /* Section headers (st.subheader / st.markdown bold) -- restrained. */
+      h2, h3 {{
+          color: {_SLATE_900};
+          font-weight: 600;
+          margin-top: 1.5rem;
+      }}
+
+      /* Captions and helper text in muted slate. */
+      .stCaption, [data-testid="stCaptionContainer"] p {{
+          color: {_SLATE_500};
+      }}
+
+      /* All Streamlit buttons: 6px radius, snappier hover. The native theme
+         already sets the navy color via primaryColor in config.toml. */
+      .stButton > button, .stDownloadButton > button {{
+          border-radius: 6px;
+          font-weight: 500;
+          padding: 0.45rem 1rem;
+          transition: background-color 120ms ease, transform 80ms ease;
+      }}
+      .stButton > button:hover, .stDownloadButton > button:hover {{
+          transform: translateY(-1px);
+      }}
+
+      /* Primary buttons (type="primary") get a deeper hover. */
+      .stButton > button[kind="primary"]:hover,
+      .stDownloadButton > button[kind="primary"]:hover {{
+          background-color: {_NAVY_HOVER};
+          border-color: {_NAVY_HOVER};
+      }}
+
+      /* Secondary buttons: ghost style. */
+      .stButton > button[kind="secondary"] {{
+          background-color: #FFFFFF;
+          color: {_SLATE_900};
+          border: 1px solid {_SLATE_200};
+      }}
+      .stButton > button[kind="secondary"]:hover {{
+          background-color: {_BG_PANEL};
+          border-color: {_NAVY};
+          color: {_NAVY};
+      }}
+
+      /* Findings checkboxes: a touch more vertical breathing room so the
+         list reads cleanly on docs with 20+ items. */
+      [data-testid="stCheckbox"] {{
+          margin-bottom: 0.35rem;
+      }}
+
+      /* Divider lines are thinner and softer than Streamlit's default. */
+      hr {{
+          border-color: {_SLATE_200} !important;
+          margin: 1.25rem 0 !important;
+      }}
+
+      /* The offline-status pill sitting top-right of the header. */
+      .pii-badge {{
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          padding: 0.35rem 0.75rem;
+          background-color: #ECFDF5;
+          border: 1px solid #BBF7D0;
+          border-radius: 999px;
+          color: {_OFFLINE_GREEN};
+          font-size: 0.85rem;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+      }}
+      .pii-badge::before {{
+          content: "";
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background-color: {_OFFLINE_GREEN};
+      }}
+      .pii-badge-sub {{
+          color: {_SLATE_500};
+          font-size: 0.78rem;
+          margin-top: 0.25rem;
+          text-align: right;
+      }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ---------------------------------------------------------------------------
+# Header: title (left) + offline badge (right)
 # ---------------------------------------------------------------------------
 
-st.title("PII Redactor")
-st.caption(
-    "Fully offline. Files never leave this machine. "
-    "Upload a document, review what was caught, and download the redacted copy."
-)
+_header_left, _header_right = st.columns([3, 2])
+with _header_left:
+    st.title("PII Redactor")
+    st.caption(
+        "Upload a document, review what was caught, and download the "
+        "redacted copy."
+    )
+with _header_right:
+    st.markdown(
+        f"""
+        <div style="text-align: right; padding-top: 0.5rem;">
+          <span class="pii-badge">Offline · {APP_VERSION}</span>
+          <div class="pii-badge-sub">
+            Your data stays on this computer
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+st.divider()
 
 
 # ---------------------------------------------------------------------------
@@ -309,10 +453,16 @@ for upload in uploaded:
             preview = render_preview(
                 result.text, result.findings, keep_indices
             )
+            # Preview panel inherits the secondary-bg palette so it sits
+            # quietly inside the page; monospace keeps redacted-text spans
+            # from reflowing as the user toggles findings.
             st.markdown(
-                f"<div style='white-space:pre-wrap; font-family:monospace; "
-                f"background:#fafafa; padding:0.75rem; border:1px solid #eee; "
-                f"border-radius:4px; max-height:480px; overflow:auto;'>"
+                f"<div style='white-space:pre-wrap; font-family:ui-monospace, "
+                f"SFMono-Regular, Menlo, Consolas, monospace; "
+                f"background:{_BG_PANEL}; padding:1rem; "
+                f"border:1px solid {_SLATE_200}; "
+                f"border-radius:8px; max-height:520px; overflow:auto; "
+                f"font-size:0.9rem; line-height:1.55;'>"
                 f"{preview}</div>",
                 unsafe_allow_html=True,
             )
@@ -338,4 +488,6 @@ for upload in uploaded:
         file_name=redacted_name,
         mime=mime,
         key=_state_key(upload.name, "download"),
+        type="primary",
+        use_container_width=False,
     )
