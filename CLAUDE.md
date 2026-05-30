@@ -11,6 +11,83 @@ No network calls at runtime, ever.** See "Offline guarantee" below.
 
 ---
 
+## ⚠️ Open question to ask Vincent at the start of the next session
+
+**Pending decision: how to resolve the DATE_TIME vs routing/account label
+collision.**
+
+Ask Vincent this in plain English at the top of the next conversation,
+before doing other work. Do NOT pick a fix unilaterally — this is a
+policy call about what the firm considers PII, not a coding question.
+
+### Background to give Vincent
+
+> Every detector in the engine gives a confidence score, and when two
+> detectors fight over the same chunk of text, the highest score wins
+> the label in the output.
+>
+> Specific collision: in a sentence like `"Routing number: 581739462 on
+> file."`, the routing-number detector scores 65% (base 30% + context
+> boost from "Routing" nearby). spaCy's general-purpose date detector
+> scores 85% on the same digit run — because long digit strings often
+> turn out to be dates/years/timestamps in the general English the model
+> was trained on. 85% beats 65%, so the redacted output reads
+> `Routing number: <DATE_TIME> on file.`
+>
+> The routing number is gone from the output (good — no leak), but the
+> label is wrong. On the review screen the user sees "this was a date,"
+> not "this was a routing number." Risk: a user checking against the
+> original doc might click "Keep" because "we don't redact dates," and
+> the actual routing number gets restored.
+
+### The question to ask
+
+> "Which trade-off do you want — fewer DATE_TIME mislabels at the cost
+> of some spreadsheet false positives, OR keeping dates redactable at
+> the cost of the wrong-label issue?"
+
+### The two fixes
+
+* **Fix A: Raise the routing recognizer's base score from 0.3 to 0.55.**
+  With the context boost it lands at ~0.9, beats DATE_TIME's 0.85.
+  Downside: any bare 9-digit number anywhere in a doc (no context word
+  nearby) now scores 0.55, above the 0.35 threshold, and flags as
+  routing. False positives in spreadsheets where columns of 9-digit
+  invoice IDs exist. **Mitigation:** the existing column-header masking
+  in extractors.py already catches account/routing columns by name in
+  XLSX/DOCX, so the spreadsheet false-positive surface is small in
+  practice. Claude's lean if forced to pick: this one.
+
+* **Fix B: Remove DATE_TIME from `redactor.DEFAULT_ENTITIES`.** The
+  spaCy date detector stops running. Downside: real dates like
+  `January 5, 2024`, `04/15/2024`, `Q3 2023` stop being redacted.
+  Whether that matters depends on whether the firm considers dates PII
+  — for an accounting firm, dates often reveal client filing dates,
+  payment dates, meeting dates, all of which can be sensitive.
+
+### If Vincent picks A
+
+In `recognizers.py`, change `ROUTING_PATTERN`'s `score=0.3` to
+`score=0.55`. Add regression tests: confirm that with the new score, a
+bare 9-digit number with no context still doesn't surface (because of
+the analyzer's overlap handling) AND that "Routing 581739462" now
+produces `<US_BANK_ROUTING>` rather than `<DATE_TIME>` in the output
+text. Update `RECOGNITION_AUDIT.md` to mark the issue closed.
+
+### If Vincent picks B
+
+In `redactor.py`, remove `"DATE_TIME"` from `DEFAULT_ENTITIES`. Add a
+regression test confirming that `"Filed on January 5, 2024"` no longer
+gets the date redacted. Confirm with Vincent that the firm has accepted
+this trade. Update `RECOGNITION_AUDIT.md`.
+
+### If Vincent wants more options
+
+A third path is per-firm: keep DATE_TIME for prose docs, drop it for
+spreadsheets. Doable but adds complexity. Don't lead with this.
+
+---
+
 ## Status & handoff (last session: 2026-05-29, post-audit)
 
 The tool is functional end-to-end on Mac. A breadth-first recognition audit
