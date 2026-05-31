@@ -588,6 +588,47 @@ test docs.**
 end-to-end, then `START_HERE.bat`. Document any failure modes. This is
 the gating step before anyone except the user can run on Windows.
 
+### 4. Per-company branding / config layer (future, if selling to >1 firm)
+
+**Goal:** support a slightly different UI per client (name, logo, colors,
+title, which optional features show) without forking the codebase.
+
+**Framing:** this ships as a per-installation zip, NOT a hosted server, so
+this is *not* runtime multi-tenancy (no login/isolation/DB — that stays
+out of scope, see "Scope"). It is **multiple single-company builds from
+one codebase**, with customization resolved at *package time*.
+
+**The rule:** per-client *configuration* (data), never per-client *code
+edits / branches*. Forking per client means a security fix (cf. the
+2026-05-31 pdfminer/Streamlit pass) must be hand-applied and re-tested N
+times. One codebase + N config bundles keeps fixes flowing to everyone.
+
+**Sketch of the approach (not yet built):**
+* A `tenant_config.py` / `branding.toml` holding company name, title,
+  logo filename, palette colors, version label, and a `features` dict.
+* `app.py` reads those instead of the hardcoded constants it has today
+  (`_BG_MAIN`, `_AMBER`, ... near the top; the `"PII Redactor"` title;
+  the badge text). The CSS f-string already interpolates these vars, so
+  it's a small refactor — source them from config.
+* A `tenants/<client>/` dir per client (branding.toml + logo +
+  firm_config.py); `scripts/package.sh --tenant <client>` bundles core +
+  that config into the client's zip.
+* Tier the work: branding (config) → behavior/feature-flags (extend
+  `firm_config` + a `features` dict) → structural (componentize UI blocks
+  into functions). Most needs are branding-only.
+
+**Invariants that must stay NON-configurable per tenant** (safety, not
+style):
+* The redaction marker color `#C00000` — it's a semantic "removed here"
+  signal, not chrome. Tenant palettes recolor chrome only.
+* Toolbar hidden, telemetry off, bind to 127.0.0.1, the offline guarantee.
+* Any tenant logo must be a **vendored local file / data-URI**, never a
+  remote URL — a remote fetch would break the offline promise.
+
+**Status:** discussed 2026-05-31, not started. Low-risk scaffold (mostly
+moving ~10 constants in `app.py` into a config file + a `tenants/` dir +
+a `--tenant` flag). Build only when a second client is real.
+
 ---
 
 ## Git workflow

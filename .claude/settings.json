@@ -1,7 +1,26 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Read(//usr/bin/**)",
+      "Bash(xargs -I{} {} --version)",
+      "Bash(rm -rf /tmp/coldtest_venv)",
+      "Bash(python3 -m venv /tmp/coldtest_venv)",
+      "Bash(/tmp/coldtest_venv/bin/pip install *)",
+      "Bash(echo \"COLD INSTALL EXIT: $?\")",
+      "Bash(/tmp/coldtest_venv/bin/pip check *)",
+      "Bash(/tmp/coldtest_venv/bin/python -m pytest -q)",
+      "Bash(rm -rf /tmp/coldtest_venv /tmp/coldtest.log && echo \"throwaway venv cleaned up\" *)",
+      "Bash(rm -rf /tmp/venvA)",
+      "Bash(python3 -m venv /tmp/venvA)",
+      "Bash(/tmp/venvA/bin/pip install *)",
+      "Bash(echo \"VENV-A INSTALL EXIT: $?\")",
+      "Bash(break)",
+      "Bash(/tmp/venvA/bin/pip check *)",
+      "Bash(/tmp/venvA/bin/pip freeze *)"
+    ],
+    "additionalDirectories": [
+      "/tmp/coldtest_venv"
     ]
   }
 }
