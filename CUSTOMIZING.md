@@ -217,7 +217,11 @@ them to either list:
 - Most people-names (via the language model; unusual names should go in
   `FIRM_NAMES`)
 - US driver licenses, US passports
-- Some addresses, dates
+- Some addresses
+
+Note: free-text **dates** (like "January 5, 2024") are intentionally NOT
+redacted — the firm decided prose dates aren't PII. A spreadsheet column
+explicitly headed *DOB* / *Date of Birth* is still masked in full.
 
 If you need a NEW type of pattern (e.g. a brand-new ID format the firm
 starts using), that's a code change — contact whoever maintains this tool.

@@ -29,7 +29,7 @@ human review screen before download.
 | `setup_once.command`       | macOS one-time setup (double-clickable from Finder)                  |
 | `START_HERE.command`       | macOS launcher (double-clickable from Finder)                        |
 | `requirements.txt`         | Pinned dependencies                                                  |
-| `tests/`                   | pytest suite (31 tests, ~3 s)                                        |
+| `tests/`                   | pytest suite (194 passing, 1 skipped, ~5 s)                          |
 | `CLAUDE.md`                | Source of truth for design decisions and scope                       |
 
 ---
@@ -106,11 +106,12 @@ Streamlit web app, served on `127.0.0.1` only:
 - Redacted spans rendered **bold + red** to match the in-document style.
 - Download button returns the rewritten document (or plain text for PDF input).
 
-### 4. Tests (`tests/`, **31 passing in ~3 s**)
+### 4. Tests (`tests/`, **194 passing, 1 skipped in ~5 s**)
 
-- `test_recognizers.py` — regex-only tests for the four custom recognizers. Fast, no spaCy load.
+- `test_recognizers.py` — regex-only tests for the custom recognizers. Fast, no spaCy load.
 - `test_redactor.py` — end-to-end: Presidio + vendored model detects each entity type, output contains `<TYPE>` tags, original PII absent, `apply_decisions()` honors "keep" choices.
 - `test_extractors.py` — round-trips for `.txt`, `.docx` (incl. bold+red styling), `.xlsx` (header-flag, free-text cell-level, leading-zero preservation, unsupported-ext error).
+- Plus deeper suites: `test_pii_battery.py` (breadth-first recognizer battery + adversarial cases), `test_offline_guarantee.py` (network-isolation), `test_preview.py`, `test_labels.py` (review-screen display names), `test_missing_model.py`, and the `*_deep.py` extractor/redactor tests.
 
 Synthetic data only. See [`tests/fixtures/README.md`](tests/fixtures/README.md).
 

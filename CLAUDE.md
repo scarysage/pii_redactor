@@ -24,6 +24,14 @@ numbers now carry their correct labels on the review screen.
 *Date of Birth* spreadsheet/table **column** is still masked wholesale —
 that path is in `extractors.py` and is independent of `DEFAULT_ENTITIES`.
 
+**Review-screen labeling:** the DOB column path still emits the raw
+`<DATE_TIME>` tag into the file, and `labels.py` maps `DATE_TIME` →
+"Date of Birth" so the review screen shows that friendly label rather than
+a bare tag. This is consistent with the fix — free-text dates stay
+un-redacted, DOB columns read correctly. If `DATE_TIME` is ever re-added to
+`DEFAULT_ENTITIES` (don't, without asking Vincent — see memory), revisit
+that label, since it would then also cover prose dates, not just DOB.
+
 Regression coverage: `tests/test_redactor.py::TestDateTimePolicy` and an
 updated `test_pii_battery.py::test_ein_in_sentence_with_year`. Full detail
 in `RECOGNITION_AUDIT.md` (DATE_TIME section, marked CLOSED).
