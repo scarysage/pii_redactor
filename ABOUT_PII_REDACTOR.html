@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<!--
+  ABOUT_PII_REDACTOR.html
+  A plain-language explainer for a non-technical reader (the boss).
+  Self-contained: all styling is inline, no external fonts or assets are
+  fetched -- the document follows the same "nothing leaves the machine"
+  principle as the tool it describes. Open in any browser; print to PDF
+  from the browser's File > Print if a paper/email copy is wanted.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PII Redactor — What it is &amp; why you can trust it</title>
+<style>
+  :root{
+    --slate-900:#0F172A; --slate-800:#1E293B; --slate-700:#334155;
+    --slate-500:#64748B; --slate-400:#94A3B8; --slate-200:#E2E8F0;
+    --slate-50:#F8FAFC;  --paper:#FBFCFE;
+    --amber:#F59E0B; --amber-600:#D97706;
+    --emerald:#059669; --emerald-bg:#ECFDF5; --emerald-border:#A7F3D0;
+    --redact:#C00000;
+    --ink:#1E293B; --muted:#64748B;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0; background:var(--slate-200);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.65; font-size:16px;
+  }
+  .page{
+    max-width:860px; margin:32px auto; background:var(--paper);
+    border-radius:16px; overflow:hidden;
+    box-shadow:0 10px 40px rgba(15,23,42,0.18);
+  }
+
+  /* ---- Dark hero (Midnight, matches the app) ---- */
+  .hero{
+    background:var(--slate-900);
+    color:var(--slate-50);
+    padding:44px 48px 40px;
+    position:relative;
+    /* faint redaction-bar watermark, same motif as the app background */
+    background-image:
+      linear-gradient(rgba(15,23,42,0.0),rgba(15,23,42,0.0)),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180'><g fill='%23FFFFFF' fill-opacity='0.045'><rect x='10' y='28' width='80' height='8' rx='1'/><rect x='100' y='28' width='40' height='8' rx='1'/><rect x='150' y='28' width='60' height='8' rx='1'/><rect x='30' y='68' width='50' height='8' rx='1'/><rect x='90' y='68' width='90' height='8' rx='1'/><rect x='190' y='68' width='40' height='8' rx='1'/><rect x='0' y='108' width='70' height='8' rx='1'/><rect x='130' y='108' width='80' height='8' rx='1'/><rect x='40' y='148' width='60' height='8' rx='1'/><rect x='110' y='148' width='70' height='8' rx='1'/><rect x='190' y='148' width='50' height='8' rx='1'/></g></svg>");
+  }
+  .badge{
+    display:inline-flex; align-items:center; gap:8px;
+    background:rgba(16,185,129,0.14); border:1px solid rgba(52,211,153,0.45);
+    color:#6EE7B7; border-radius:999px; padding:6px 14px;
+    font-size:13px; font-weight:600; letter-spacing:.02em;
+  }
+  .badge::before{content:""; width:8px;height:8px;border-radius:50%;
+    background:#34D399; box-shadow:0 0 6px #34D399;}
+  .hero h1{
+    margin:18px 0 6px; font-size:34px; font-weight:700; letter-spacing:-.02em;
+  }
+  .hero .tag{ color:var(--slate-400); font-size:17px; margin:0; max-width:60ch;}
+  .lock{font-size:30px; line-height:1;}
+
+  /* ---- Body ---- */
+  .body{padding:14px 48px 40px;}
+  h2{
+    font-size:22px; font-weight:700; letter-spacing:-.01em;
+    margin:34px 0 6px; color:var(--slate-900);
+    padding-bottom:8px; border-bottom:2px solid var(--slate-200);
+  }
+  h2 .num{
+    color:var(--amber-600); font-variant-numeric:tabular-nums;
+    margin-right:10px;
+  }
+  h3{font-size:16px; margin:20px 0 4px; color:var(--slate-900);}
+  p{margin:10px 0;}
+  .lead{font-size:17px;}
+  .muted{color:var(--muted);}
+  strong{color:var(--slate-900);}
+
+  /* callout boxes */
+  .callout{
+    border-radius:12px; padding:16px 20px; margin:18px 0;
+    border:1px solid var(--slate-200); background:#fff;
+  }
+  .callout.key{
+    border-left:5px solid var(--amber); background:#FFFBEB;
+  }
+  .callout.safe{
+    border:1px solid var(--emerald-border); background:var(--emerald-bg);
+  }
+  .callout .h{font-weight:700; color:var(--slate-900); margin:0 0 4px;
+    display:flex; align-items:center; gap:8px;}
+  .callout.safe .h{color:#047857;}
+
+  /* steps */
+  .steps{counter-reset:step; margin:18px 0; padding:0; list-style:none;}
+  .steps li{
+    position:relative; padding:14px 16px 14px 64px; margin:10px 0;
+    background:#fff; border:1px solid var(--slate-200); border-radius:12px;
+  }
+  .steps li::before{
+    counter-increment:step; content:counter(step);
+    position:absolute; left:16px; top:14px;
+    width:34px; height:34px; border-radius:50%;
+    background:var(--slate-900); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:15px;
+  }
+  .steps li .t{font-weight:700; color:var(--slate-900);}
+
+  /* chips grid */
+  .chips{display:flex; flex-wrap:wrap; gap:8px; margin:14px 0;}
+  .chip{
+    background:#fff; border:1px solid var(--slate-200); border-radius:999px;
+    padding:6px 14px; font-size:14px; font-weight:600; color:var(--slate-700);
+  }
+
+  /* before / after example */
+  .example{
+    display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:16px 0;
+  }
+  .doc{
+    background:#fff; border:1px solid var(--slate-200); border-radius:12px;
+    padding:16px 18px; font-size:14px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    line-height:1.7;
+  }
+  .doc .label{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    font-size:12px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--muted); margin-bottom:8px;
+  }
+  .red{color:var(--redact); font-weight:700;}
+
+  /* Q&A cards */
+  .qa{margin:14px 0;}
+  .qa .q{font-weight:700; color:var(--slate-900); margin:16px 0 2px;}
+  .qa .a{margin:0; color:var(--ink);}
+
+  /* security stat row */
+  .stats{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:18px 0;}
+  .stat{
+    background:var(--slate-900); color:#fff; border-radius:12px;
+    padding:16px; text-align:center;
+  }
+  .stat .big{font-size:26px; font-weight:800; color:#34D399; line-height:1.1;}
+  .stat .lab{font-size:12.5px; color:var(--slate-400); margin-top:4px;}
+
+  ul.clean{margin:8px 0; padding-left:22px;}
+  ul.clean li{margin:6px 0;}
+
+  .footer{
+    background:var(--slate-900); color:var(--slate-400);
+    padding:22px 48px; font-size:13px; text-align:center;
+  }
+  .footer strong{color:var(--slate-50);}
+
+  @media (max-width:640px){
+    .body,.hero,.footer{padding-left:24px; padding-right:24px;}
+    .example,.stats{grid-template-columns:1fr;}
+  }
+  /* Print: keep it clean, avoid awkward page breaks inside boxes */
+  @media print{
+    body{background:#fff;}
+    .page{box-shadow:none; margin:0; border-radius:0; max-width:none;}
+    .callout,.steps li,.doc,.stat{break-inside:avoid;}
+    h2{break-after:avoid;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HERO -->
+  <header class="hero">
+    <span class="badge">Runs entirely on your computer</span>
+    <h1><span class="lock">🔒</span> PII Redactor</h1>
+    <p class="tag">A simple desktop tool that finds and removes sensitive client
+      information from a document <em>before</em> it ever goes into an outside
+      service like ChatGPT — so the firm gets the benefit of those tools without
+      handing over a client's private data.</p>
+  </header>
+
+  <div class="body">
+
+    <!-- 30-SECOND VERSION -->
+    <div class="callout key">
+      <p class="h">⏱️ The 30-second version</p>
+      <p style="margin:0">You drop in a file. The tool reads it, blacks out
+        Social Security numbers, bank details, names, addresses, and the like,
+        and shows you exactly what it caught so you can double-check. You
+        download a clean copy. <strong>Nothing is ever sent over the internet</strong> —
+        the whole thing happens on the one computer it's installed on, even with
+        the Wi-Fi turned off.</p>
+    </div>
+
+    <!-- WHY -->
+    <h2><span class="num">1</span>Why this exists</h2>
+    <p class="lead">AI tools are genuinely useful for drafting and summarizing.
+      The problem is what you have to paste in to use them.</p>
+    <p>A client engagement letter or a 1099 spreadsheet is full of exactly the
+      information that must never leave the firm: Social Security numbers, bank
+      account and routing numbers, employer tax IDs, home addresses. Pasting any
+      of that into a website means it has left your control — it may be stored,
+      logged, or used to train someone else's system. For an accounting firm that
+      handles real client data, that's both a trust problem and a compliance one.</p>
+    <p>This tool removes that information first, so a partner or staff member can
+      safely use outside AI tools on a <em>scrubbed</em> version of the document.</p>
+
+    <!-- HOW IT WORKS -->
+    <h2><span class="num">2</span>What it does, step by step</h2>
+    <ol class="steps">
+      <li><span class="t">You open the tool and drop in a file.</span>
+        It accepts the everyday formats — Word (<code>.docx</code>), Excel
+        (<code>.xlsx</code>), PDF, and plain text. You can drop several at once.</li>
+      <li><span class="t">It scans the document automatically.</span>
+        Within a few seconds it identifies the sensitive items and replaces each
+        one with a labeled tag, so you can see <em>what kind</em> of thing was
+        removed.</li>
+      <li><span class="t">It shows you everything it caught — for review.</span>
+        This is the important part. You see a checklist of every item alongside a
+        live preview. If it caught something that isn't actually sensitive, you
+        uncheck it and it comes back. Nothing is hidden from you.</li>
+      <li><span class="t">You download the clean copy.</span>
+        Word and Excel files come back as proper Word and Excel files with the
+        formatting intact; the sensitive bits are marked in bold red so they're
+        easy to spot. That clean copy is what's safe to use elsewhere.</li>
+    </ol>
+
+    <h3>What a redaction actually looks like</h3>
+    <div class="example">
+      <div class="doc">
+        <div class="label">Before</div>
+        Client: Jane Doe<br>
+        SSN: 456-78-9012<br>
+        Routing: 021000021<br>
+        123 Main Street, Newark NJ 07102
+      </div>
+      <div class="doc">
+        <div class="label">After</div>
+        Client: Jane <span class="red">&lt;PERSON&gt;</span><br>
+        SSN: <span class="red">&lt;US_SSN&gt;</span><br>
+        Routing: <span class="red">&lt;US_BANK_ROUTING&gt;</span><br>
+        <span class="red">&lt;LOCATION&gt;</span>
+      </div>
+    </div>
+    <p class="muted" style="font-size:14px">The labels (like
+      <code>&lt;US_SSN&gt;</code>) are deliberate — they tell you and the AI tool
+      "a Social Security number was here" without revealing the number itself.</p>
+
+    <!-- WHAT IT CATCHES -->
+    <h2><span class="num">3</span>What it looks for</h2>
+    <p>Out of the box it recognizes the kinds of information an accounting firm
+      handles every day:</p>
+    <div class="chips">
+      <span class="chip">Social Security numbers</span>
+      <span class="chip">Employer tax IDs (EIN)</span>
+      <span class="chip">Bank account numbers</span>
+      <span class="chip">Routing numbers</span>
+      <span class="chip">Credit card numbers</span>
+      <span class="chip">Email addresses</span>
+      <span class="chip">Phone numbers</span>
+      <span class="chip">Home / street addresses</span>
+      <span class="chip">ZIP codes</span>
+      <span class="chip">Names</span>
+      <span class="chip">Passports &amp; driver's licenses</span>
+    </div>
+    <p>And it's adjustable without touching any code. There's a built-in box where
+      you can add a specific name, account number, or project code that should
+      <em>always</em> be removed — either just for the current session or saved
+      permanently for every future document.</p>
+
+    <!-- WHY THESE CHOICES -->
+    <h2><span class="num">4</span>Why it works the way it does</h2>
+    <div class="qa">
+      <p class="q">Why does a human still have to review it?</p>
+      <p class="a">No automated detector is perfect — it can occasionally miss an
+        unusually formatted name or flag something harmless. Rather than pretend
+        otherwise, the tool is built around a review screen so a person always has
+        the final say. The detector does the heavy lifting; you provide the
+        judgment. <strong>It's a safety net, not a rubber stamp.</strong></p>
+
+      <p class="q">Why are first names left in?</p>
+      <p class="a">That was a deliberate choice for the firm's documents: last
+        names and full identifiers are removed, but a bare first name on its own
+        usually isn't sensitive and removing every one made documents hard to
+        read. Any specific name you <em>do</em> want always removed can be added to
+        the firm's list.</p>
+
+      <p class="q">Why do PDFs come back as text?</p>
+      <p class="a">Rewriting a PDF in place — keeping fonts and layout perfect while
+        surgically removing text — is surprisingly error-prone, and a mistake there
+        could leave sensitive data visible. Converting to clean text is simpler and
+        safer, and it's exactly the format you'd paste into an AI tool anyway.</p>
+
+      <p class="q">Why the bold red marks?</p>
+      <p class="a">One consistent signal — bold red — means "something was removed
+        here," everywhere it appears. That color is reserved for redactions only,
+        so it never blends in with ordinary formatting.</p>
+    </div>
+
+    <!-- SECURITY -->
+    <h2><span class="num">5</span>How privacy &amp; security were built in</h2>
+    <p class="lead">The guiding rule, which overrides everything else:
+      <strong>nothing leaves the local machine — ever.</strong></p>
+    <ul class="clean">
+      <li><strong>No internet, by design.</strong> The tool makes no network
+        connections of any kind while it runs — no uploads, no analytics, no
+        "checking for updates." It works with the Wi-Fi switched off, and that's
+        verified by an automated test that fails the build if any part of the
+        program so much as tries to reach the internet.</li>
+      <li><strong>The "brain" is bundled in.</strong> The language model that
+        recognizes names and places is shipped <em>inside</em> the tool, not
+        downloaded. There's nothing to fetch and nothing to phone home.</li>
+      <li><strong>Your files stay yours.</strong> A document is processed in a
+        temporary working space that is wiped as soon as you're done. The only file
+        that's kept is the clean copy you choose to download.</li>
+      <li><strong>It was independently security-audited.</strong> The full program
+        and every outside component it relies on were reviewed for known
+        vulnerabilities and unsafe patterns, and the issues found were fixed the
+        same day.</li>
+    </ul>
+
+    <div class="stats">
+      <div class="stat"><div class="big">0</div><div class="lab">known security
+        vulnerabilities remaining</div></div>
+      <div class="stat"><div class="big">205</div><div class="lab">automated tests
+        passing</div></div>
+      <div class="stat"><div class="big">100%</div><div class="lab">offline — no
+        data ever transmitted</div></div>
+    </div>
+
+    <div class="callout safe">
+      <p class="h">✓ The short version on security</p>
+      <p style="margin:0">A booby-trapped document can't quietly compromise the
+        computer, a clever filename can't escape into the rest of the system, and
+        oversized files are capped so they can't crash the tool. These were
+        checked, hardened, and re-tested. The full technical write-up lives in the
+        project's <em>SECURITY_AUDIT.md</em> if your IT person ever wants it.</p>
+    </div>
+
+    <!-- LIMITS -->
+    <h2><span class="num">6</span>What it doesn't do (and your part in it)</h2>
+    <p>Being honest about the edges is part of using it safely:</p>
+    <ul class="clean">
+      <li><strong>It is not a replacement for reading the document.</strong> The
+        review screen exists precisely because the detector can miss an oddly
+        formatted entry. A quick human read is still the last line of defense.</li>
+      <li><strong>It handles one document at a time per drop</strong> (you can drop
+        a few), not giant overnight batches — that's a deliberate v1 scope.</li>
+      <li><strong>It doesn't keep an audit trail or reversible "un-redact" codes.</strong>
+        Once it's removed, it's gone — which is the safe default.</li>
+    </ul>
+    <p class="muted">All of these are intentional choices for a first version,
+      made to keep the tool simple, predictable, and safe rather than feature-heavy.</p>
+
+  </div>
+
+  <footer class="footer">
+    <p style="margin:0 0 4px"><strong>PII Redactor</strong> — built for the firm,
+      runs only on the firm's computer.</p>
+    <p style="margin:0">This document contains no real client data. It was written
+      to be read by anyone, technical or not.</p>
+  </footer>
+
+</div>
+</body>
+</html>

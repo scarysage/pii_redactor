@@ -29,8 +29,10 @@ human review screen before download.
 | `setup_once.command`       | macOS one-time setup (double-clickable from Finder)                  |
 | `START_HERE.command`       | macOS launcher (double-clickable from Finder)                        |
 | `requirements.txt`         | Pinned dependencies                                                  |
-| `tests/`                   | pytest suite (194 passing, 1 skipped, ~5 s)                          |
+| `tests/`                   | pytest suite (205 passing, 1 skipped, ~5 s)                          |
 | `CLAUDE.md`                | Source of truth for design decisions and scope                       |
+| `SECURITY_AUDIT.md`        | 2026-05-31 security audit + remediation status (CVEs, isolation)     |
+| `ABOUT_PII_REDACTOR.html`  | Plain-language explainer for a non-technical reader (the boss)       |
 
 ---
 
@@ -106,12 +108,12 @@ Streamlit web app, served on `127.0.0.1` only:
 - Redacted spans rendered **bold + red** to match the in-document style.
 - Download button returns the rewritten document (or plain text for PDF input).
 
-### 4. Tests (`tests/`, **194 passing, 1 skipped in ~5 s**)
+### 4. Tests (`tests/`, **205 passing, 1 skipped in ~5 s**)
 
 - `test_recognizers.py` — regex-only tests for the custom recognizers. Fast, no spaCy load.
 - `test_redactor.py` — end-to-end: Presidio + vendored model detects each entity type, output contains `<TYPE>` tags, original PII absent, `apply_decisions()` honors "keep" choices.
 - `test_extractors.py` — round-trips for `.txt`, `.docx` (incl. bold+red styling), `.xlsx` (header-flag, free-text cell-level, leading-zero preservation, unsupported-ext error).
-- Plus deeper suites: `test_pii_battery.py` (breadth-first recognizer battery + adversarial cases), `test_offline_guarantee.py` (network-isolation), `test_preview.py`, `test_labels.py` (review-screen display names), `test_missing_model.py`, and the `*_deep.py` extractor/redactor tests.
+- Plus deeper suites: `test_pii_battery.py` (breadth-first recognizer battery + adversarial cases), `test_offline_guarantee.py` (network-isolation), `test_security_hardening.py` (magic-byte upload check + filename sanitization — see the 2026-05-31 security pass), `test_preview.py`, `test_labels.py` (review-screen display names), `test_missing_model.py`, and the `*_deep.py` extractor/redactor tests.
 
 Synthetic data only. See [`tests/fixtures/README.md`](tests/fixtures/README.md).
 
@@ -122,6 +124,14 @@ Synthetic data only. See [`tests/fixtures/README.md`](tests/fixtures/README.md).
 - `.streamlit/config.toml` disables Streamlit's usage-stats telemetry and binds the server to `127.0.0.1`.
 - `setup_once.bat` aborts if the vendored model is missing rather than fetching it.
 - `requirements.txt` is pinned and minimal.
+
+A full security audit ran 2026-05-31 (`SECURITY_AUDIT.md`): all known dependency
+CVEs were cleared (pinned `pdfminer.six 20251230`, `streamlit 1.58.0`,
+`pillow 12.2.0`), and the upload path was hardened — a magic-byte signature
+check (`extractors._verify_file_signature`) rejects files whose bytes don't
+match their extension, uploaded filenames are reduced to a bare basename before
+any path join, and `maxUploadSize` is capped at 100 MB. `pip-audit` now reports
+zero known vulnerabilities.
 
 ### 6. Packaging — Windows (primary) + macOS (secondary)
 
@@ -137,7 +147,16 @@ launch. Neither downloads the spaCy model — it must ship in the zip.
 - `setup_once.command` — finds `python3` (Homebrew or python.org), enforces Python 3.10+, creates `.venv/`, installs `requirements.txt`. Refuses to run if the vendored model is missing.
 - `START_HERE.command` — runs Streamlit from the venv, opens the default browser via `open`.
 
-> ⚠️ Per CLAUDE.md's packaging test gate: these scripts have been written but **not yet validated on real Windows or macOS hardware**. Required before relying on them for distribution.
+> ⚠️ Per CLAUDE.md's packaging test gate: `requirements.txt` is now a **fully
+> pinned lock** (every transitive dependency pinned to a verified version, not
+> just the top-level packages), so a fresh install gets the exact versions
+> tested here — no silent drift. A cache-less `pip install -r requirements.txt`
+> from that lock was verified to install cleanly and pass the full suite (205
+> tests) in a clean virtualenv on **Python 3.12 / Linux** (2026-05-31). Still
+> outstanding before distribution: the `.bat` / `.command` launcher scripts on
+> **real Windows / macOS hardware**, and a fresh install on **Python 3.10 / 3.11**
+> (the pinned versions were chosen for 3.10–3.12 compatibility but not yet
+> exercised there).
 
 ---
 
@@ -208,4 +227,8 @@ These are marked in CLAUDE.md and still need a real answer from the firm/maintai
 
 ## License
 
-Internal tool. Not for redistribution outside the firm.
+Proprietary. Distribution and use are governed by the commercial EULA in
+[`LICENSE`](LICENSE) (as-is, no warranty; NJ governing law). That file is a
+starter template and **needs lawyer review before the first paid sale.**
+Third-party components are attributed in
+[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
