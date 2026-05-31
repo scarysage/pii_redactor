@@ -11,6 +11,59 @@ No network calls at runtime, ever.** See "Offline guarantee" below.
 
 ---
 
+## ✅ Resolved 2026-05-31: security audit + remediation
+
+A full security audit ran this session — report in `SECURITY_AUDIT.md`
+(threat model: supply-chain compromise, accidental exfiltration, malicious
+dependencies, unsafe code). Every finding was fixed the same day. After the
+pass, `pip-audit` reports **0 known CVEs** and the suite is **205 passing,
+1 skipped**.
+
+**Dependency bumps (all security-driven; engine deliberately held):**
+
+* `pdfplumber` 0.11.4 → **0.11.9**, which pulls patched **`pdfminer.six`
+  20251230** (now pinned explicitly in `requirements.txt`). Fixes a
+  Critical pickle-based RCE (CVE-2025-64512) that a malicious PDF could
+  trigger — and PDFs are exactly what this tool parses.
+* `streamlit` 1.39.0 → **1.58.0** (clears CVE-2026-33682, a Windows
+  path-traversal). **This swapped Streamlit's Tornado server for a
+  starlette/uvicorn/websockets stack.** The toolbar-hiding `data-testid`
+  selectors were re-verified present in the 1.58 JS bundle, all `st.*`
+  APIs used by `app.py` confirmed to still exist, and config keys
+  validated. See "Boundaries" for the (now 1.58) pin.
+* `pillow` 10.4.0 → **12.2.0** (pinned; was coupled to the Streamlit bump
+  because the old `streamlit` capped `pillow<11`). Clears several
+  image/PDF parsing flaws.
+* `pytest` 8.3.3 → **9.0.3** (dev-only).
+* **spaCy 3.7.5 / numpy 1.26.4 were held fixed** through all of the above
+  — the redaction engine is untouched. `pip check` is clean.
+
+**Code/config hardening:**
+
+* `app.py` upload handler reduces the browser-supplied filename to a bare
+  basename (strips POSIX *and* Windows separators) before any path join,
+  so a crafted name can't escape the temp dir.
+* `extractors._verify_file_signature()` runs a magic-byte check before any
+  parser sees the file: `.pdf` must contain `%PDF` in its first 1 KB,
+  `.docx`/`.xlsx` must start with the ZIP header `PK\x03\x04`, `.txt` is
+  unchecked. Deliberately lenient — it never rejects a genuine document.
+  Backstops the extension-only upload filter.
+* `.streamlit/config.toml` sets `maxUploadSize = 100` (MB) — a DoS guard so
+  one oversized/malformed file can't exhaust parser memory. (Was the
+  Streamlit default of 200; briefly 50 during the pass, raised to 100 so
+  large scanned PDFs still upload.)
+
+**New files:** `SECURITY_AUDIT.md` (full report + remediation-status table),
+`tests/test_security_hardening.py` (11 regression tests: magic-byte check +
+filename sanitization).
+
+**Still open (low priority):** hashed requirements (`--require-hashes`) for
+distribution builds — optional supply-chain hardening, not blocking. The
+new starlette/uvicorn server stack carries no known CVEs but widens the
+dependency surface; re-run `pip-audit` before each release.
+
+---
+
 ## ✅ Resolved 2026-05-31: DATE_TIME vs routing/account label collision
 
 **Decision: Fix B.** Vincent chose to drop `DATE_TIME` from
@@ -112,15 +165,17 @@ landed in this session — see `RECOGNITION_AUDIT.md` for the full report.
     Streamlit Community Cloud and the 3-dot menu links hit
     streamlit.io. Both must stay hidden in any future version. See
     "Boundaries" below.
-* Tests: **194 passing, 1 skipped, 0 xfail in ~5s.** Coverage includes
+* Tests: **205 passing, 1 skipped, 0 xfail in ~5s.** Coverage includes
   regex isolation, end-to-end Presidio detection, DOCX/XLSX/PDF
   round-trips, DOCX table column-masking regression, overlap/adjacency
   handling, Unicode + regex metachar safety, network-isolation guarantee
   (socket / urllib patched), preview render, missing-model defensive
-  path, user-additions live reload, surname-particle trimming, and the
-  full breadth-first PII battery (`tests/test_pii_battery.py`) covering
-  every recognizer with synthetic data plus adversarial cross-recognizer
-  cases.
+  path, user-additions live reload, surname-particle trimming, the
+  security-hardening regression set (`tests/test_security_hardening.py`:
+  magic-byte signature check + upload-filename basename sanitization),
+  and the full breadth-first PII battery (`tests/test_pii_battery.py`)
+  covering every recognizer with synthetic data plus adversarial
+  cross-recognizer cases.
 
 **What's resolved from the original TODO list:**
 
@@ -224,7 +279,10 @@ Flat single-package layout. Files (top of repo):
   output), `.docx` (in-place run rewrite + table column masking),
   `.xlsx` (hybrid column + cell-level redaction). Also the
   `SENSITIVE_HEADER_KEYWORDS` and `FREETEXT_HEADER_KEYWORDS` lists used
-  by both DOCX tables and XLSX sheets.
+  by both DOCX tables and XLSX sheets. `redact_file()` calls
+  `_verify_file_signature()` first — a magic-byte check that rejects a
+  file whose bytes don't match its extension before any parser runs
+  (defense in depth; see `SECURITY_AUDIT.md` M-2).
 * `firm_config.py` — IT-curated `FIRM_NAMES` and `ALWAYS_REDACT` lists.
   Pure data. The firm's IT person edits this directly. **No logic here.**
 * `user_additions.py` — read/write helpers for `user_additions.txt`.
@@ -260,6 +318,10 @@ Flat single-package layout. Files (top of repo):
 * `RECOGNITION_AUDIT.md` — 2026-05-29 breadth-first audit report of
   every recognizer's status, cross-cutting findings, and ranked next
   steps. Read this when adding or modifying recognizers.
+* `SECURITY_AUDIT.md` — 2026-05-31 security audit (dependency CVEs,
+  network isolation, code review) with a remediation-status table. Read
+  this before bumping dependencies or touching the upload/file-handling
+  path.
 
 Build order is preserved from the original spec: engine (1–2) → file
 handling (3) → UI (4) → packaging. Modify in that order if making big
@@ -375,8 +437,12 @@ All three feed into the same matching engine. The UI surfaces (1) and
   link to streamlit.io. If a future Streamlit version renames any of
   these `data-testid` attributes, the toolbar will reappear silently —
   grep `static/static/js/main.*.js` in the venv for the new IDs and
-  update the selectors. **Pin `streamlit==1.39.0` in `requirements.txt`
-  exactly** so this can't break on a `pip install -U`.
+  update the selectors. **Pin `streamlit==1.58.0` in `requirements.txt`
+  exactly** so this can't break on a `pip install -U`. (Bumped from
+  1.39.0 on 2026-05-31 to clear CVE-2026-33682; the five `data-testid`
+  selectors above were re-verified present in the 1.58 JS bundle. 1.54+
+  also swapped Streamlit's Tornado server for a starlette/uvicorn stack —
+  see SECURITY_AUDIT.md.)
 * `RUNBOOK.md` — does not exist yet. [TODO: write one if/when distribution
   ramps up.]
 * `LICENSE` (proprietary EULA) — needs lawyer review before the first

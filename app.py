@@ -427,7 +427,16 @@ for upload in uploaded:
         # Write the upload to a temp file so extractors can read by path.
         # We read the bytes out BEFORE the tempdir is cleaned up.
         with tempfile.TemporaryDirectory() as tmpdir:
-            src_path = Path(tmpdir) / upload.name
+            # Reduce the browser-supplied name to a bare filename before
+            # joining it onto the temp dir. The name is untrusted input: a
+            # crafted value like "../../x.txt" or "C:\\Windows\\x.txt" must
+            # never escape tmpdir. We strip both POSIX and Windows separators
+            # (the name can arrive Windows-style even on a Mac) and reject the
+            # degenerate "." / ".." cases.
+            safe_name = Path(upload.name.replace("\\", "/")).name
+            if not safe_name or safe_name in (".", ".."):
+                safe_name = "uploaded_file"
+            src_path = Path(tmpdir) / safe_name
             src_path.write_bytes(upload.getbuffer())
 
             dst_suffix = src_path.suffix.lower()

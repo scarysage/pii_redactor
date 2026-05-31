@@ -103,6 +103,50 @@ class ExtractionResult:
 
 
 # ---------------------------------------------------------------------------
+# Content-signature ("magic byte") check
+# ---------------------------------------------------------------------------
+# Defense in depth: the UI only accepts .txt/.pdf/.docx/.xlsx by extension,
+# but an extension is trivial to fake. Before we hand a file to a parser
+# (pdfminer / python-docx / openpyxl), confirm its first bytes actually match
+# the claimed type. This narrows the chance that a file renamed to ".pdf" is
+# fed to the PDF parser as a parser-exploit payload.
+#
+# Deliberately lenient so we never reject a genuine document:
+#   * .pdf   -> "%PDF" must appear within the first 1024 bytes (the PDF spec
+#               allows leading bytes before the header; some real-world PDFs
+#               have a BOM or stray whitespace first).
+#   * .docx  -> ZIP container, must start with the local-file-header magic
+#     .xlsx    "PK\x03\x04" (Office Open XML files are ZIP archives).
+#   * .txt   -> no check; any byte content is legitimate plain text.
+
+def _verify_file_signature(src: Path) -> None:
+    """Raise ValueError if `src`'s contents don't match its extension.
+
+    Only checks formats with a well-defined signature. Unknown extensions are
+    left to the dispatch in redact_file() to reject.
+    """
+    suffix = src.suffix.lower()
+    try:
+        head = src.read_bytes()[:1024]
+    except OSError:
+        # Let the actual parser surface the read error with its own message.
+        return
+
+    if suffix == ".pdf":
+        if b"%PDF" not in head:
+            raise ValueError("File is named .pdf but is not a PDF document.")
+    elif suffix in (".docx", ".xlsx"):
+        # Office Open XML is a ZIP archive. Empty/new archives use other PK
+        # signatures, but a real document always starts with a local file
+        # header, "PK\x03\x04".
+        if not head.startswith(b"PK\x03\x04"):
+            raise ValueError(
+                f"File is named {suffix} but is not a valid Office document."
+            )
+    # .txt and anything else: no signature to check.
+
+
+# ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
@@ -113,6 +157,8 @@ def redact_file(src: str | Path, dst: str | Path) -> ExtractionResult:
     src = Path(src)
     dst = Path(dst)
     suffix = src.suffix.lower()
+    # Confirm the bytes match the extension before any parser touches them.
+    _verify_file_signature(src)
     if suffix == ".txt":
         return redact_txt(src, dst)
     if suffix == ".pdf":

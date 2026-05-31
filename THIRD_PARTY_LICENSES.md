@@ -17,15 +17,16 @@ with it.
 | presidio-analyzer     | 2.2.355  | MIT        | https://github.com/microsoft/presidio                  |
 | presidio-anonymizer   | 2.2.355  | MIT        | https://github.com/microsoft/presidio                  |
 | spaCy                 | 3.7.5    | MIT        | https://github.com/explosion/spaCy                     |
-| pdfplumber            | 0.11.4   | MIT        | https://github.com/jsvine/pdfplumber                   |
+| pdfplumber            | 0.11.9   | MIT        | https://github.com/jsvine/pdfplumber                   |
 | python-docx           | 1.1.2    | MIT        | https://github.com/python-openxml/python-docx          |
 | openpyxl              | 3.1.5    | MIT        | https://foss.heptapod.net/openpyxl/openpyxl            |
-| Streamlit             | 1.39.0   | Apache 2.0 | https://github.com/streamlit/streamlit                 |
+| Streamlit             | 1.58.0   | Apache 2.0 | https://github.com/streamlit/streamlit                 |
 
 Transitive dependencies installed with the above (numpy, pandas,
-pydantic, tornado, click, regex, requests, etc.) are likewise licensed
-under permissive terms (BSD, MIT, or Apache 2.0). A full machine-
-generated list can be produced at any time by running:
+pydantic, pdfminer.six, pillow, starlette, uvicorn, websockets, click,
+regex, requests, etc.) are likewise licensed under permissive terms
+(BSD, MIT, or Apache 2.0). A full machine-generated list can be produced
+at any time by running:
 
     pip install pip-licenses
     pip-licenses --format=markdown --with-license-file --with-urls

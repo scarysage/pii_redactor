@@ -12,6 +12,11 @@ headless = true
 # Streamlit's CORS/XSRF protections are fine for local-only use.
 enableCORS = true
 enableXsrfProtection = true
+# Cap upload size (MB). Real accounting documents are well under this -- even
+# large scanned PDFs rarely exceed it -- while the cap still stops a single
+# oversized or malformed file from exhausting memory in the document parsers
+# (openpyxl / python-docx / pdfminer). Streamlit's default is 200.
+maxUploadSize = 100
 
 [global]
 # Keep the runtime quiet. No "show warning when running in dev mode" noise.
