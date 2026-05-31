@@ -141,6 +141,27 @@ landed in this session — see `RECOGNITION_AUDIT.md` for the full report.
 * Docs for end users: `SETUP_GUIDE.md` (two-section, Mac + Windows, with
   full Gatekeeper / Mark-of-the-Web walkthroughs) and `CUSTOMIZING.md`
   (in-app box first, edit-`firm_config.py` second).
+* Licensing artifacts for commercial distribution:
+  - `LICENSE` — proprietary commercial EULA (as-is, no warranty,
+    liability capped at fees paid in prior 12 months, NJ governing law).
+    Starter template, **needs lawyer review before first paid sale**.
+  - `THIRD_PARTY_LICENSES.md` — required attribution for Presidio,
+    spaCy, Streamlit, pdfplumber, python-docx, openpyxl, and the
+    vendored `en_core_web_lg` model. Full MIT + Apache 2.0 texts
+    included.
+  - Copyright header `# Copyright (c) 2026 Vincent Shahinllari. All
+    rights reserved.` on every owned `.py` file (21 files).
+  - `scripts/package.sh` verifies both license files ship in the zip.
+* UI: "Midnight" dark theme. Slate-900 canvas, slate-50 text, amber
+  primary CTA (#F59E0B), emerald-tinted offline-status pill in the
+  top-right (`● Offline · v1.0` + `Your data stays on this computer`
+  subtitle). Faint redaction-bar SVG watermark tiled across the page
+  at 6% opacity — inline data URI, no network fetch.
+  - Streamlit's built-in toolbar (Deploy button, 3-dot menu, running
+    indicator) is **hidden via CSS** — the Deploy button pushes to
+    Streamlit Community Cloud and the 3-dot menu links hit
+    streamlit.io. Both must stay hidden in any future version. See
+    "Boundaries" below.
 * Tests: **186 passing, 1 skipped, 0 xfail in ~5s.** Coverage includes
   regex isolation, end-to-end Presidio detection, DOCX/XLSX/PDF
   round-trips, DOCX table column-masking regression, overlap/adjacency
@@ -165,23 +186,21 @@ landed in this session — see `RECOGNITION_AUDIT.md` for the full report.
   `sample_with_pii.pdf` (generated once by `_build_pdf.py`).
 * Pytest is wired up — see commands below.
 
-**Local uncommitted state (NEEDS COMMIT + PUSH if next session is
-continuing the work):**
+**Local state: clean.** All session work pushed to `main`. Most recent
+commits, newest first:
 
-* Recognition audit changes from this session:
-  - `recognizers.py`: account regex tightened to skip 9-digit; new
-    `US_ZIP` recognizer; new `PHONE_NUMBER` recognizer replacing
-    Presidio's permissive default; **context lists migrated to lemma
-    forms** (silent bug — see "Cross-cutting findings" below).
-  - `redactor.py`: registry now removes Presidio's default
-    `PhoneRecognizer` after `load_predefined_recognizers`.
-  - `tests/test_recognizers.py`: 18 new tests for the regex fixes.
-  - `tests/test_pii_battery.py`: new file, 49 tests.
-  - `RECOGNITION_AUDIT.md`: new audit report.
+* `755d1ff` — Midnight dark UI + redaction-bar background
+* `c0ba7c4` — Streamlit toolbar hidden, button styling fixed
+* `0fc28d2` — first UI restyle pass ("Quiet Professional" light theme,
+  superseded by `755d1ff`)
+* `b64e98a` — DATE_TIME open-question pinned at top of CLAUDE.md
+* `59bbd3d` — recognition audit (all originally-flagged gaps closed)
+* `22729e5` — licensing files + particle trim
+* `702696c` — DOCX table column masking + bulk UI buttons + packaging
 
-The most recent pushed commit is `22729e5` (licensing + particle trim).
-The audit above is uncommitted. **First action of next session: review
-the diff, commit, push.**
+**Visually verified by Vincent in browser as of session end** —
+screenshot of the Midnight UI looked correct (header, badge, button
+styling, redaction-bar background all rendered as designed).
 
 **Cross-cutting finding from this audit (read before adding more
 recognizers):**
@@ -216,7 +235,7 @@ macOS (secondary, added for one user). See "Packaging".
 # Run the app during dev
 .venv/bin/streamlit run app.py
 
-# Full test suite (currently 110 tests, ~4s)
+# Full test suite (currently 186 pass / 1 skip / 0 xfail, ~5s)
 .venv/bin/python -m pytest -q
 
 # Install / refresh deps (pinned)
@@ -265,12 +284,20 @@ Flat single-package layout. Files (top of repo):
 * `preview.py` — HTML rendering for the live preview pane. Extracted
   from `app.py` for testability (Streamlit fires page setup on import).
 * `app.py` — Streamlit UI. Upload → auto-redact → review → download.
-  Includes the `➕` expander and bulk Keep/Redact buttons.
-* `.streamlit/config.toml` — telemetry off, bound to 127.0.0.1.
+  Includes the `➕` expander, bulk Keep/Redact buttons, and the inline
+  CSS block that paints the Midnight theme + redaction-bar background
+  and hides Streamlit's built-in toolbar.
+* `.streamlit/config.toml` — telemetry off, bound to 127.0.0.1,
+  `base = "dark"` + Midnight palette tokens.
 * `scripts/` — `vendor_model.py` (dev-only), `package.sh` (build a
   distribution zip).
 * `tests/` — pytest. `fixtures/sample_with_pii.pdf` is a committed
   binary; `_build_pdf.py` regenerates it if needed.
+* `LICENSE`, `THIRD_PARTY_LICENSES.md` — commercial-distribution
+  artifacts. See "Licensing artifacts" in the status block above.
+* `RECOGNITION_AUDIT.md` — 2026-05-29 breadth-first audit report of
+  every recognizer's status, cross-cutting findings, and ranked next
+  steps. Read this when adding or modifying recognizers.
 
 Build order is preserved from the original spec: engine (1–2) → file
 handling (3) → UI (4) → packaging. Modify in that order if making big
@@ -319,9 +346,17 @@ Per firm directive: do not redact first names. Implemented in
 
 ### Review-screen visual style
 
-ONE consistent style for redacted items: **bold + `#C00000`** (deep
-red). Applied in:
-* The Streamlit live preview (HTML span)
+The app uses a **Midnight** dark palette for UI chrome (see "UI" in
+the status block above): slate-900 canvas, slate-50 text, amber CTA,
+emerald offline pill. CSS lives inline in `app.py` so nothing is
+fetched from a CDN at runtime (offline guarantee).
+
+`#C00000` (deep red) is **reserved exclusively for redacted-content
+markers** — it never appears as UI chrome, button color, or accent.
+That reservation is what keeps the red a meaningful signal rather
+than noise. Applied as **bold + `#C00000`** in:
+* The Streamlit live preview (HTML span — pops against the slate-800
+  preview-panel background)
 * DOCX output (run-level styling)
 * XLSX output (bold + red text, pale-yellow `#FFF2CC` fill)
 * PDF output is plain text with `<TYPE>` tags only — no styling, per
@@ -370,8 +405,20 @@ All three feed into the same matching engine. The UI surfaces (1) and
   or re-download from runtime code.
 * `*.bat` / `*.command` files — propose changes in chat; do not silently
   rewrite. They're fragile and OS-specific.
+* **Streamlit's built-in toolbar must stay hidden.** The CSS block at
+  the top of `app.py` hides `stHeader`, `stToolbar`, `stAppDeployButton`,
+  `stMainMenu`, and `stStatusWidget`. The Deploy button pushes to
+  Streamlit Community Cloud (a paid network operation, out of scope for
+  an offline tool); the 3-dot menu's "Get help" / "Report a bug" items
+  link to streamlit.io. If a future Streamlit version renames any of
+  these `data-testid` attributes, the toolbar will reappear silently —
+  grep `static/static/js/main.*.js` in the venv for the new IDs and
+  update the selectors. **Pin `streamlit==1.39.0` in `requirements.txt`
+  exactly** so this can't break on a `pip install -U`.
 * `RUNBOOK.md` — does not exist yet. [TODO: write one if/when distribution
   ramps up.]
+* `LICENSE` (proprietary EULA) — needs lawyer review before the first
+  paid sale. Don't ship in a paid distribution without that review.
 * Never read, create, or commit real client documents or any file
   containing real PII. Test only against synthetic fixtures in
   `tests/fixtures/`.
