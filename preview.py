@@ -81,7 +81,9 @@ def render_preview(
         out.append(escape(text[cursor:]))
     if truncated:
         out.append(
-            "<div style='color:#999; margin-top:0.5rem;'>"
+            # slate-400 -- matches the app's muted-text token (_TEXT_MUTED)
+            # and clears contrast on the dark preview panel.
+            "<div style='color:#94A3B8; margin-top:0.5rem;'>"
             "[preview truncated -- download to see full file]</div>"
         )
     return "".join(out)

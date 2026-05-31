@@ -27,6 +27,7 @@ import streamlit as st
 
 import redactor
 from extractors import ExtractionResult, redact_file
+from labels import friendly_count, friendly_label
 from preview import render_preview
 from user_additions import (
     add_user_addition,
@@ -436,11 +437,29 @@ for upload in uploaded:
             dst_path = Path(tmpdir) / f"redacted_{src_path.stem}{dst_suffix}"
 
             try:
-                result = redact_file(src_path, dst_path)
+                with st.spinner(
+                    f"Scanning {upload.name} for sensitive information…"
+                ):
+                    result = redact_file(src_path, dst_path)
                 redacted_bytes = dst_path.read_bytes()
                 redacted_name = dst_path.name
             except Exception as e:
-                st.error(f"Could not process this file: {e}")
+                # Friendly, actionable message first -- a raw stack trace is a
+                # dead end for a non-technical reviewer. The technical detail
+                # stays available in an expander for whoever supports the tool.
+                ext = src_path.suffix.lower().lstrip(".") or "file"
+                st.error(
+                    f"**We couldn't read “{upload.name}”.**\n\n"
+                    f"This usually means the file is password-protected, "
+                    f"corrupted, or isn't really a {ext.upper()} file even "
+                    f"though it's named like one.\n\n"
+                    f"**What to try:** open it in its normal program "
+                    f"(Word, Excel, your PDF viewer), re-save it as a fresh "
+                    f"{ext.upper()} file, and upload that copy. If it still "
+                    f"fails, the file may be damaged."
+                )
+                with st.expander("Technical details (for IT)"):
+                    st.code(f"{type(e).__name__}: {e}")
                 continue
 
         st.session_state[cache_key] = {
@@ -458,13 +477,49 @@ for upload in uploaded:
         for n in result.notes:
             st.warning(n)
 
+    # Count findings by type up front -- drives both the summary card and the
+    # bulk-action buttons below.
+    type_counts: dict[str, int] = {}
+    for f in result.findings:
+        type_counts[f.entity_type] = type_counts.get(f.entity_type, 0) + 1
+
     if not result.findings:
-        st.success("No PII detected. Original is available for download as-is.")
+        st.success(
+            "**No sensitive information detected.** We scanned this file and "
+            "found nothing to redact. The copy below is safe to download as-is."
+        )
     else:
-        st.write(
-            f"**{len(result.findings)} potential PII item"
-            f"{'s' if len(result.findings) != 1 else ''} found.** "
-            "Uncheck anything that's a false positive -- it will be kept as-is."
+        # Redaction summary card -- the trust moment. Shows, in plain English,
+        # exactly what was found and how much, before the reviewer digs into
+        # individual items. Counts are sorted most-common first.
+        total = len(result.findings)
+        breakdown = "".join(
+            f"<li>{friendly_count(etype, count)}</li>"
+            for etype, count in sorted(type_counts.items(), key=lambda kv: -kv[1])
+        )
+        st.markdown(
+            f"""
+            <div style="background:{_BG_PANEL}; border:1px solid {_BORDER};
+                        border-left:4px solid {_AMBER}; border-radius:8px;
+                        padding:1rem 1.25rem; margin-bottom:0.5rem;">
+              <div style="font-size:1.05rem; font-weight:600;
+                          color:{_TEXT_PRIMARY};">
+                We found and redacted {total} item{'s' if total != 1 else ''}
+                in this document.
+              </div>
+              <ul style="margin:0.5rem 0 0 1.1rem; color:{_TEXT_PRIMARY};
+                         font-size:0.92rem; line-height:1.6;">
+                {breakdown}
+              </ul>
+              <div style="color:{_TEXT_MUTED}; font-size:0.82rem;
+                          margin-top:0.6rem;">
+                Everything below is redacted by default. Review the list and
+                uncheck anything that isn't actually sensitive — it will be
+                kept in your downloaded copy.
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
         left, right = st.columns([1, 2])
@@ -474,9 +529,6 @@ for upload in uploaded:
             # Useful for big documents where unchecking 30 individual SSN
             # checkboxes would be tedious. One button per entity type that
             # appears in this file's findings.
-            type_counts: dict[str, int] = {}
-            for f in result.findings:
-                type_counts[f.entity_type] = type_counts.get(f.entity_type, 0) + 1
 
             with st.expander(
                 f"Bulk actions ({len(type_counts)} type"
@@ -503,7 +555,7 @@ for upload in uploaded:
                 ):
                     cols = st.columns([3, 2])
                     if cols[0].button(
-                        f"Keep all `{etype}` ({count})",
+                        f"Keep all {friendly_label(etype)} ({count})",
                         key=_state_key(upload.name, f"bulk_keep::{etype}"),
                         use_container_width=True,
                     ):
@@ -514,7 +566,7 @@ for upload in uploaded:
                                 ] = False
                         st.rerun()
                     if cols[1].button(
-                        f"Redact all `{etype}`",
+                        f"Redact all {friendly_label(etype)}",
                         key=_state_key(upload.name, f"bulk_redact::{etype}"),
                         use_container_width=True,
                     ):
@@ -526,13 +578,21 @@ for upload in uploaded:
                         st.rerun()
 
             st.markdown("**Review findings**")
+            st.caption("Checked = redacted. Uncheck to keep the original text.")
             keep_indices: list[int] = []
             for i, f in enumerate(result.findings):
                 key = _state_key(upload.name, f"keep::{i}")
+                # Label reads in plain English: the friendly type name plus the
+                # exact text we matched, so the reviewer can verify the catch.
+                # Raw confidence scores are jargon for this audience -- instead
+                # we flag only the lower-confidence catches (below 0.5) with a
+                # "double-check" nudge, surfacing uncertainty without noise.
+                label = f"**{friendly_label(f.entity_type)}** — `{f.text}`"
+                if f.score < 0.5:
+                    label += "  · lower confidence, please double-check"
                 # Default state: checked = redact. Uncheck = keep original.
                 checked = st.checkbox(
-                    f"`{f.entity_type}` — {f.text!r} "
-                    f"(score {f.score:.2f})",
+                    label,
                     value=st.session_state.get(key, True),
                     key=key,
                 )
@@ -578,8 +638,14 @@ for upload in uploaded:
         ),
     }.get(Path(redacted_name).suffix.lower(), "application/octet-stream")
 
+    # Honest label: only call it "redacted" when we actually changed something.
+    download_label = (
+        f"⬇ Download redacted {redacted_name}"
+        if result.findings
+        else f"⬇ Download {redacted_name}"
+    )
     st.download_button(
-        label=f"⬇ Download redacted {redacted_name}",
+        label=download_label,
         data=redacted_bytes,
         file_name=redacted_name,
         mime=mime,

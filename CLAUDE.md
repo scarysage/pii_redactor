@@ -104,7 +104,7 @@ landed in this session — see `RECOGNITION_AUDIT.md` for the full report.
     Streamlit Community Cloud and the 3-dot menu links hit
     streamlit.io. Both must stay hidden in any future version. See
     "Boundaries" below.
-* Tests: **189 passing, 1 skipped, 0 xfail in ~5s.** Coverage includes
+* Tests: **194 passing, 1 skipped, 0 xfail in ~5s.** Coverage includes
   regex isolation, end-to-end Presidio detection, DOCX/XLSX/PDF
   round-trips, DOCX table column-masking regression, overlap/adjacency
   handling, Unicode + regex metachar safety, network-isolation guarantee
@@ -225,10 +225,22 @@ Flat single-package layout. Files (top of repo):
   immediately.
 * `preview.py` — HTML rendering for the live preview pane. Extracted
   from `app.py` for testability (Streamlit fires page setup on import).
+* `labels.py` — plain-English display names for the internal entity tags
+  (`US_SSN` → "Social Security Number", etc.). Review-screen presentation
+  ONLY: the redacted file and the live preview still carry the raw `<TYPE>`
+  tags so the reviewer sees exactly what lands in the download. Standalone /
+  Streamlit-free so it unit-tests like `preview.py`. **Add a mapping here
+  whenever you add an entity to `redactor.DEFAULT_ENTITIES`** —
+  `tests/test_labels.py` fails if one is missing.
 * `app.py` — Streamlit UI. Upload → auto-redact → review → download.
-  Includes the `➕` expander, bulk Keep/Redact buttons, and the inline
+  Includes the `➕` expander, bulk Keep/Redact buttons, a per-file
+  redaction-summary card (plain-English count by type), a processing
+  spinner, friendly entity labels via `labels.py`, a "lower confidence,
+  please double-check" nudge on findings scoring < 0.5, and the inline
   CSS block that paints the Midnight theme + redaction-bar background
-  and hides Streamlit's built-in toolbar.
+  and hides Streamlit's built-in toolbar. File-read failures show an
+  actionable message (with a "Technical details (for IT)" expander), not
+  a raw stack trace.
 * `.streamlit/config.toml` — telemetry off, bound to 127.0.0.1,
   `base = "dark"` + Midnight palette tokens.
 * `scripts/` — `vendor_model.py` (dev-only), `package.sh` (build a
