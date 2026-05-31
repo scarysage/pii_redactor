@@ -49,8 +49,13 @@ Custom regex recognizers with context-word boosting:
 | `REDACTED` (firm)  | Alternation over `ALWAYS_REDACT` | Empty by default; firm-editable         |
 
 Plus Presidio's built-in recognizers for `US_SSN`, `EMAIL_ADDRESS`,
-`PHONE_NUMBER`, `PERSON`, `CREDIT_CARD`, `US_ITIN`, `LOCATION`, `DATE_TIME`,
+`PHONE_NUMBER`, `PERSON`, `CREDIT_CARD`, `US_ITIN`, `LOCATION`,
 `IBAN_CODE`, `US_PASSPORT`, `US_DRIVER_LICENSE`.
+
+Free-text `DATE_TIME` detection is intentionally **off** (firm decision
+2026-05-31): the firm does not treat prose dates as PII, and the date
+detector mislabeled redacted bank numbers. A spreadsheet/table column
+explicitly headed *DOB* / *Date of Birth* is still masked wholesale.
 
 **Firm-editable lists** live in `firm_config.py`:
 - `FIRM_NAMES` — names the language model misses. Currently: `Strassler`, `Herbstman`. Matched case-insensitively, whole-word, tagged `PERSON`.

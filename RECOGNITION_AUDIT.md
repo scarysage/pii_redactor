@@ -86,26 +86,34 @@ review screen showed the wrong tag.
 
 **Test that caught it:** `TestBankRouting::test_routing_with_context`.
 
-### DATE_TIME vs numeric recognizer collisions
+### DATE_TIME vs numeric recognizer collisions — CLOSED (2026-05-31, Fix B)
 
 spaCy NER tags long digit runs as `DATE_TIME` with a high score (0.85).
-When our routing/account recognizer fires on the same span at a lower
-boosted score (~0.65), `DATE_TIME` wins the overlap during anonymization
-and the output shows `<DATE_TIME>` instead of `<US_BANK_ROUTING>`.
+When our routing/account recognizer fired on the same span at a lower
+boosted score (~0.65), `DATE_TIME` won the overlap during anonymization
+and the output showed `<DATE_TIME>` instead of `<US_BANK_ROUTING>`.
 
-**Impact:** the value IS redacted; the label is wrong. Review screen UX
-is degraded for routing numbers.
+**Impact (was):** the value IS redacted; the label is wrong. Review screen
+UX degraded for routing numbers, with a restore-on-Keep risk.
 
-**Not fixed in this pass** — fixing requires either pushing routing/account
-base scores up (causing false positives on bare numerics elsewhere) or
-excluding `DATE_TIME` from `DEFAULT_ENTITIES` (causing real dates to leak).
-Both are policy changes outside the audit's scope.
+**Resolution — Fix B (firm decision 2026-05-31):** `DATE_TIME` was removed
+from `redactor.DEFAULT_ENTITIES`. spaCy's free-text date detector no longer
+runs, so it can no longer out-score or mislabel our numeric recognizers.
+Routing/account numbers now carry their correct labels.
 
-**Recommended next step:** ask the firm whether they care about
-distinguishing `<DATE_TIME>` from `<US_BANK_ROUTING>` on the review screen.
-If yes, raise routing's score to 0.55 + boost 0.35 = 0.9, accept the
-false-positive uptick on bare 9-digit strings, and let the column-header
-masking carry the load for spreadsheets.
+**Trade-off accepted by the firm:** real prose dates (`January 5, 2024`,
+`04/15/2024`, `Q3 2023`) are no longer redacted. A spreadsheet/table column
+explicitly headed *DOB* / *Date of Birth* is still masked wholesale — that
+path lives in `extractors.py` and is independent of `DEFAULT_ENTITIES`.
+
+**Why not Fix A (raise routing base score to 0.55):** would have flagged
+any bare 9-digit number anywhere as routing, adding spreadsheet false
+positives. The firm chose to stop treating dates as PII instead.
+
+**Regression coverage:** `tests/test_redactor.py::TestDateTimePolicy`
+(prose date survives, numeric date survives, routing keeps its own label);
+`tests/test_pii_battery.py::test_ein_in_sentence_with_year` updated to
+assert `2018` survives.
 
 ---
 
@@ -114,7 +122,7 @@ masking carry the load for spreadsheets.
 | # | Item | Risk class | Effort | Notes |
 |---|---|---|---|---|
 | 1 | **Add a Windows VM test pass** (Open Work #5 in CLAUDE.md) | Distribution blocker | 1 day | Independent of this audit. Still the gating step before non-Mac distribution. |
-| 2 | **Decide on routing-vs-DATE_TIME mislabeling** by either raising routing base score or dropping `DATE_TIME` from `DEFAULT_ENTITIES` | Mislabeling | 1 line + several tests | Pure policy call. Talk to the firm. |
+| 2 | ~~**Decide on routing-vs-DATE_TIME mislabeling**~~ — DONE 2026-05-31. Firm chose Fix B: `DATE_TIME` dropped from `DEFAULT_ENTITIES`. See the CLOSED section above. | Mislabeling | — | Closed. |
 | 3 | **Add address-recognizer ZIP riders** — fold `, NJ 07102` into the same span as the street | Mislabeling (currently two findings instead of one) | Half a day | Cosmetic improvement to the review screen. |
 | 4 | **Investigate cross-paragraph context for DOCX** (CLAUDE.md Open Work #4) | Missed PII | 1 day, risky | Do only if a real firm test doc shows the pattern. |
 

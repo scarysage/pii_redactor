@@ -52,7 +52,15 @@ DEFAULT_ENTITIES = [
     "PHONE_NUMBER",
     "PERSON",
     "LOCATION",
-    "DATE_TIME",
+    # DATE_TIME intentionally OMITTED. Firm decision (2026-05-31): the firm
+    # does NOT treat free-text dates as PII, and spaCy's date detector scored
+    # 0.85 on long digit runs (routing/account numbers), out-scoring our
+    # context-boosted recognizers and mislabeling redacted bank numbers as
+    # <DATE_TIME> on the review screen. Dropping it makes those labels correct.
+    # Trade-off accepted: real dates like "January 5, 2024" are no longer
+    # redacted in prose. (An explicitly DOB-labeled spreadsheet/table COLUMN is
+    # still masked -- that path lives in extractors.py and is independent of
+    # this list.) See RECOGNITION_AUDIT.md and CLAUDE.md.
     "IBAN_CODE",
     "US_PASSPORT",
     "US_DRIVER_LICENSE",

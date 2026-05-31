@@ -399,9 +399,11 @@ class TestAdversarial:
         )
         assert _has_type(findings, "US_EIN")
         assert "47-1234567" not in red
-        # NOTE: "2018" is picked up by spaCy's DATE_TIME recognizer (which is
-        # in DEFAULT_ENTITIES). That's the intended behavior -- the firm
-        # treats years/dates as PII. The EIN is NOT mistagged as a date.
+        # NOTE: "2018" is NOT redacted -- DATE_TIME was dropped from
+        # DEFAULT_ENTITIES (firm decision 2026-05-31; see TestDateTimePolicy
+        # in test_redactor.py). The point of this test is that the EIN is
+        # detected and is NOT mistagged as a date.
+        assert "2018" in red
         ein_findings = _find_text_of_type(findings, "US_EIN")
         assert "47-1234567" in ein_findings
 

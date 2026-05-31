@@ -154,8 +154,9 @@ class TestAddressDetection:
         # The classic over-matching trap for an address regex: "5 Year Plan",
         # "100 Days of Code". The point of this test is to make sure OUR
         # address pattern (LOCATION tag from UsAddressRecognizer) does not
-        # catch these. spaCy may independently flag "5 Year Plan" as
-        # DATE_TIME -- that is a separate detector and a separate concern.
+        # catch these. (DATE_TIME is no longer in DEFAULT_ENTITIES, so spaCy's
+        # date detector no longer fires on "5 Year Plan" either -- see
+        # TestDateTimePolicy.)
         for phrase in ("Our 5 Year Plan was approved.",
                        "100 Days of Code is a challenge."):
             _, findings = redact(phrase)
@@ -166,6 +167,37 @@ class TestAddressDetection:
                 assert "Plan" not in f.text and "Days" not in f.text, (
                     f"Address recognizer over-fired: {f.text!r} in {phrase!r}"
                 )
+
+
+class TestDateTimePolicy:
+    """Firm decision (2026-05-31): free-text dates are NOT PII.
+
+    DATE_TIME was dropped from redactor.DEFAULT_ENTITIES to fix the
+    label-collision where spaCy's date detector (score 0.85) out-scored our
+    context-boosted routing/account recognizers and mislabeled redacted bank
+    numbers as <DATE_TIME>. The accepted trade-off: real prose dates now
+    survive. See CLAUDE.md and RECOGNITION_AUDIT.md.
+    """
+
+    def test_prose_date_is_not_redacted(self):
+        red, findings = redact("Filed on January 5, 2024 with the IRS.")
+        # The date text survives verbatim...
+        assert "January 5, 2024" in red
+        # ...and nothing is tagged DATE_TIME.
+        assert not any(f.entity_type == "DATE_TIME" for f in findings)
+        assert "<DATE_TIME>" not in red
+
+    def test_numeric_date_is_not_redacted(self):
+        red, _ = redact("Payment due 04/15/2024.")
+        assert "04/15/2024" in red
+
+    def test_routing_number_keeps_its_own_label(self):
+        # The whole point of the change: a routing number in a date-shaped
+        # digit run is now labeled correctly instead of as <DATE_TIME>.
+        red, findings = redact("Routing number: 581739462 on file.")
+        assert "581739462" not in red
+        assert any(f.entity_type == "US_BANK_ROUTING" for f in findings)
+        assert "<DATE_TIME>" not in red
 
 
 class TestFirstNamePolicy:

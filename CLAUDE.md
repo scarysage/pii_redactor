@@ -11,80 +11,22 @@ No network calls at runtime, ever.** See "Offline guarantee" below.
 
 ---
 
-## ⚠️ Open question to ask Vincent at the start of the next session
+## ✅ Resolved 2026-05-31: DATE_TIME vs routing/account label collision
 
-**Pending decision: how to resolve the DATE_TIME vs routing/account label
-collision.**
+**Decision: Fix B.** Vincent chose to drop `DATE_TIME` from
+`redactor.DEFAULT_ENTITIES` rather than raise routing's base score. spaCy's
+free-text date detector no longer runs, so it can't out-score (0.85) or
+mislabel our context-boosted routing/account recognizers (~0.65). Bank
+numbers now carry their correct labels on the review screen.
 
-Ask Vincent this in plain English at the top of the next conversation,
-before doing other work. Do NOT pick a fix unilaterally — this is a
-policy call about what the firm considers PII, not a coding question.
+**Trade-off the firm accepted:** real prose dates (`January 5, 2024`,
+`04/15/2024`, `Q3 2023`) are no longer redacted. An explicitly *DOB* /
+*Date of Birth* spreadsheet/table **column** is still masked wholesale —
+that path is in `extractors.py` and is independent of `DEFAULT_ENTITIES`.
 
-### Background to give Vincent
-
-> Every detector in the engine gives a confidence score, and when two
-> detectors fight over the same chunk of text, the highest score wins
-> the label in the output.
->
-> Specific collision: in a sentence like `"Routing number: 581739462 on
-> file."`, the routing-number detector scores 65% (base 30% + context
-> boost from "Routing" nearby). spaCy's general-purpose date detector
-> scores 85% on the same digit run — because long digit strings often
-> turn out to be dates/years/timestamps in the general English the model
-> was trained on. 85% beats 65%, so the redacted output reads
-> `Routing number: <DATE_TIME> on file.`
->
-> The routing number is gone from the output (good — no leak), but the
-> label is wrong. On the review screen the user sees "this was a date,"
-> not "this was a routing number." Risk: a user checking against the
-> original doc might click "Keep" because "we don't redact dates," and
-> the actual routing number gets restored.
-
-### The question to ask
-
-> "Which trade-off do you want — fewer DATE_TIME mislabels at the cost
-> of some spreadsheet false positives, OR keeping dates redactable at
-> the cost of the wrong-label issue?"
-
-### The two fixes
-
-* **Fix A: Raise the routing recognizer's base score from 0.3 to 0.55.**
-  With the context boost it lands at ~0.9, beats DATE_TIME's 0.85.
-  Downside: any bare 9-digit number anywhere in a doc (no context word
-  nearby) now scores 0.55, above the 0.35 threshold, and flags as
-  routing. False positives in spreadsheets where columns of 9-digit
-  invoice IDs exist. **Mitigation:** the existing column-header masking
-  in extractors.py already catches account/routing columns by name in
-  XLSX/DOCX, so the spreadsheet false-positive surface is small in
-  practice. Claude's lean if forced to pick: this one.
-
-* **Fix B: Remove DATE_TIME from `redactor.DEFAULT_ENTITIES`.** The
-  spaCy date detector stops running. Downside: real dates like
-  `January 5, 2024`, `04/15/2024`, `Q3 2023` stop being redacted.
-  Whether that matters depends on whether the firm considers dates PII
-  — for an accounting firm, dates often reveal client filing dates,
-  payment dates, meeting dates, all of which can be sensitive.
-
-### If Vincent picks A
-
-In `recognizers.py`, change `ROUTING_PATTERN`'s `score=0.3` to
-`score=0.55`. Add regression tests: confirm that with the new score, a
-bare 9-digit number with no context still doesn't surface (because of
-the analyzer's overlap handling) AND that "Routing 581739462" now
-produces `<US_BANK_ROUTING>` rather than `<DATE_TIME>` in the output
-text. Update `RECOGNITION_AUDIT.md` to mark the issue closed.
-
-### If Vincent picks B
-
-In `redactor.py`, remove `"DATE_TIME"` from `DEFAULT_ENTITIES`. Add a
-regression test confirming that `"Filed on January 5, 2024"` no longer
-gets the date redacted. Confirm with Vincent that the firm has accepted
-this trade. Update `RECOGNITION_AUDIT.md`.
-
-### If Vincent wants more options
-
-A third path is per-firm: keep DATE_TIME for prose docs, drop it for
-spreadsheets. Doable but adds complexity. Don't lead with this.
+Regression coverage: `tests/test_redactor.py::TestDateTimePolicy` and an
+updated `test_pii_battery.py::test_ein_in_sentence_with_year`. Full detail
+in `RECOGNITION_AUDIT.md` (DATE_TIME section, marked CLOSED).
 
 ---
 
@@ -162,7 +104,7 @@ landed in this session — see `RECOGNITION_AUDIT.md` for the full report.
     Streamlit Community Cloud and the 3-dot menu links hit
     streamlit.io. Both must stay hidden in any future version. See
     "Boundaries" below.
-* Tests: **186 passing, 1 skipped, 0 xfail in ~5s.** Coverage includes
+* Tests: **189 passing, 1 skipped, 0 xfail in ~5s.** Coverage includes
   regex isolation, end-to-end Presidio detection, DOCX/XLSX/PDF
   round-trips, DOCX table column-masking regression, overlap/adjacency
   handling, Unicode + regex metachar safety, network-isolation guarantee
@@ -235,7 +177,7 @@ macOS (secondary, added for one user). See "Packaging".
 # Run the app during dev
 .venv/bin/streamlit run app.py
 
-# Full test suite (currently 186 pass / 1 skip / 0 xfail, ~5s)
+# Full test suite (currently 189 pass / 1 skip / 0 xfail, ~5s)
 .venv/bin/python -m pytest -q
 
 # Install / refresh deps (pinned)
@@ -535,18 +477,12 @@ re-numbered below.
   Bldg | Building | #` rider. Rider is anchored AFTER the street suffix
   so `Suite 100 of this report` cannot trigger.
 
-### 1. DATE_TIME crowding out routing/account labels
+### ~~1. DATE_TIME crowding out routing/account labels~~ — CLOSED 2026-05-31
 
-**Problem:** spaCy NER tags long digit runs as `DATE_TIME` at score
-0.85. Routing/account context-boosted scores top out around 0.65 with
-the lemma fix. On overlap, anonymization picks `DATE_TIME` and the
-output shows `<DATE_TIME>` instead of `<US_BANK_ROUTING>`. The value
-IS redacted; the label is wrong.
-
-**Fix options:** raise routing's base score to 0.55 so boosted score
-hits 0.9 (accepting false positives on bare 9-digit strings), OR drop
-`DATE_TIME` from `DEFAULT_ENTITIES` (accepting that real dates like
-"January 5, 2024" leak). Policy call — ask the firm.
+Resolved via Fix B: `DATE_TIME` dropped from `redactor.DEFAULT_ENTITIES`.
+See the "✅ Resolved" section near the top of this file and the CLOSED
+DATE_TIME section in `RECOGNITION_AUDIT.md`. Trade accepted by the firm:
+prose dates no longer redacted; explicit DOB columns still masked.
 
 ### 2. Cross-paragraph context for DOCX (deferred)
 
