@@ -80,6 +80,15 @@ This opens:
 After this first setup, you only need `START_HERE.command` to launch from
 now on. `setup_once.command` is one-time only.
 
+> **Tip — want it on your Desktop?** Don't *copy* `START_HERE.command` to
+> the Desktop — a copy can't find the app and will fail with a "venv not
+> found" error (the launcher has to stay in the folder next to the app).
+> Instead make an **alias**: right-click `START_HERE.command` → **Make
+> Alias**, then drag the new alias to your Desktop. Double-clicking the
+> alias runs the real launcher in its proper folder. You can rename the
+> alias to something friendly like "PII Redactor" — and delete the little
+> "alias" word from the name if you want.
+
 ---
 
 ## Windows Setup
@@ -134,6 +143,14 @@ Double-click `START_HERE.bat`. This opens:
 
 After this first setup, you only need `START_HERE.bat` to launch from now
 on. `setup_once.bat` is one-time only.
+
+> **Tip — want it on your Desktop?** Don't *copy* `START_HERE.bat` to the
+> Desktop — a copy can't find the app and will fail (the launcher has to
+> stay in the folder next to the app). Instead make a **shortcut**:
+> right-click `START_HERE.bat` → **Show more options** (on Windows 11) →
+> **Send to → Desktop (create shortcut)**. Double-clicking the shortcut
+> runs the real launcher in its proper folder. You can rename the shortcut
+> to something friendly like "PII Redactor".
 
 ---
 

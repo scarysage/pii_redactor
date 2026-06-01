@@ -629,6 +629,149 @@ style):
 moving ~10 constants in `app.py` into a config file + a `tenants/` dir +
 a `--tenant` flag). Build only when a second client is real.
 
+### 5. Pin + link the exact Python version in SETUP_GUIDE (prerequisite step)
+
+**Problem:** setup needs Python 3.10–3.12 pre-installed (it can't be
+auto-installed — bootstrapping: pip is itself Python, so Python is the
+interpreter that runs the installer for everything else; auto-installing it
+would be a privileged, system-wide, security-sensitive change, often blocked
+on locked-down firm machines). Today the Python requirement is buried as a
+sidebar note ("if setup says No supported Python found") rather than a guided
+up-front step, and the version links are inconsistent.
+
+**Do:**
+* Choose ONE exact recommended version — the **latest 3.12.x patch** (newest
+  of the supported 3.10–3.12 range, still gets security patches; cp312 wheels
+  exist for every pinned dep, confirmed by the 2026-05-31 cold-install test).
+* In `SETUP_GUIDE.md`, make "Install Python `<X.Y.Z>`" an explicit **Step 1
+  prerequisite** BEFORE unzip/`setup_once`, with the exact official installer
+  links per OS (Windows: the 64-bit installer `.exe` from
+  `python.org/downloads/release/python-31xx/`; macOS: the universal2 `.pkg`).
+* Windows gotcha to document accurately: the python.org installer installs the
+  `py` launcher by default, which `setup_once.bat` uses — verify whether the
+  "Add python.exe to PATH" checkbox is actually needed and state it correctly
+  (don't guess).
+* Keep consistent with the range the scripts enforce (3.10–3.12; 3.13+
+  rejected — no cp313 wheels for the pinned spaCy/thinc).
+
+**Note:** this is the near-term doc mitigation. The real fix is bundling
+Python via a signed installer so users never install it (see the delivery /
+distribution thinking — option ②). Until then, guide them to the exact version.
+
+**Status:** raised 2026-05-31, not started.
+
+### 6. Easy way to "un-redact" / remove a self-configured term
+
+**Ask:** users want a simple way to undo a name/term they themselves added
+to the redact list (e.g. they added a surname, later want it to stop being
+redacted).
+
+**Current state:** the in-app `➕ Add a specific item to redact` expander
+already has **Remove** buttons for session terms and for persistent terms
+(`user_additions.txt`) — see `app.py`. So partial support exists; the gap is
+likely **discoverability** (it's tucked in a collapsed expander) and that it
+doesn't cover `firm_config.FIRM_NAMES` (those are code-edited, no UI removal).
+
+**Do:** make "remove a term I added" obvious (surface the saved-terms list
+more prominently, confirm the Remove buttons work as expected in the shipped
+build), and decide whether IT-curated `FIRM_NAMES` should be viewable /
+disable-able from the UI or stay code-only. Keep the per-finding "uncheck to
+keep" review-screen path as-is — this item is about managing the *saved
+configuration*, not one-off review decisions.
+
+**Status:** raised 2026-05-31 (macOS testing round), not started.
+
+### 7. "day-to-day" falsely redacted — DIAGNOSED: stale build
+
+**Report:** the phrase "day-to-day" was being redacted, though it's not a date.
+
+**Diagnosed 2026-05-31:** spaCy tags **capitalized `Day-to-Day`** (title / header
+/ sentence-start) as a `DATE` entity (lowercase mid-sentence is not tagged —
+hence the "intermittent" feel). In a build where `DATE_TIME` is enabled, that
+becomes a `<DATE_TIME>` redaction.
+
+**Already fixed in current code:** `DATE_TIME` was removed from
+`redactor.DEFAULT_ENTITIES` on 2026-05-31. Verified: `analyze()` on the current
+build returns **no findings** for every "day-to-day" variant (capitalized,
+en-dash, with nearby years). So the symptom means the **deployed macOS build is
+stale (pre-2026-05-31)** — which also means it's missing the entire security
+pass (pdfminer RCE fix, Streamlit/pillow bumps, filename hardening, upload cap,
+pinned deps).
+
+**Action: none in code — update the deployment.** Reinstall from the current
+zip (`pii-redactor-20260531-2002.zip` or later) and re-run `setup_once`. No
+stop-list needed; the `DATE_TIME` drop already covers it.
+
+**Status:** RESOLVED in code; pending redeploy of the up-to-date build on the
+test Mac.
+
+### 8. macOS testing-round bugs (2026-05-31) — names, styling, iCloud
+
+First real macOS run on a synthetic-but-realistic document surfaced:
+
+* **Names left unredacted** (e.g. "Bob & Alice Smith" — two first names sharing
+  a surname). The known weak link: spaCy misses unusual name constructions, and
+  the firm's first-name policy *drops* lone first names + only redacts the last
+  token — so a missed multi-word span leaks entirely. Mitigation today is
+  `FIRM_NAMES`. Possible improvement: better handling of "X & Y Surname"
+  conjunction shapes. The review screen + `FIRM_NAMES` remain the safety nets.
+* **Whole name over-redacted in a column** (e.g. "First M. Last" fully masked).
+  Cause: sensitive-column / table wholesale masking replaces the entire cell,
+  which **bypasses the keep-first-names policy** (that policy only applies to
+  free-text/inline detection). **Decide intended behavior:** should flagged
+  columns also preserve first names, or is whole-cell masking the (safer)
+  intent? Make it consistent and document it.
+* **Half-red placeholder styling** in DOCX/XLSX output — the `<TAG>` is present
+  and the redaction is correct, but only part of the tag renders red. Cosmetic,
+  but wrong. Suspected run-boundary issue when rewriting a paragraph/cell that
+  had mixed formatting. **Needs a synthetic repro** (fake data) to reproduce,
+  fix, and cover with a test. Confirm whether it's the `.docx` run-rewrite path
+  (`_rewrite_paragraph` / `_replace_cell_text`) or the `.xlsx` cell-font path.
+* **macOS iCloud syncing client files** (NOT the tool). If the user's
+  Desktop/Documents are in iCloud Drive (macOS default), the OS uploads/offloads
+  those files to Apple's cloud independent of this app — so the *original* client
+  docs may already be leaving the machine via the OS. The redactor itself stays
+  offline (temp-folder processing, verified). **Add a prominent SETUP_GUIDE
+  warning**: on PII machines, keep input + output in a local-only folder, or
+  disable iCloud "Desktop & Documents Folders" sync. This is a real
+  deployment-environment compliance gap, not an app bug.
+
+**Status:** raised 2026-05-31, not started. Highest-impact quick win: add the
+real surname(s) to `FIRM_NAMES` for the leaked-names case.
+
+### 9. Let users launch from the Desktop (a copy doesn't work)
+
+**Report:** users want `START_HERE` on the Desktop; copying it there fails.
+
+**Why a copy fails:** the launcher anchors to its own location —
+`START_HERE.command:18` sets `SCRIPT_DIR` from `${BASH_SOURCE[0]}` and then
+looks for `.venv` and `app.py` *beside itself* (same pattern in
+`START_HERE.bat` via `%~dp0`). Copy it to the Desktop and `SCRIPT_DIR` becomes
+the Desktop, where there's no `.venv` → "venv not found." A plain **symlink**
+also fails, because `${BASH_SOURCE[0]}` is the symlink's own path (the script
+doesn't resolve symlinks).
+
+**Options (ranked; launcher edits are in the "propose, don't rewrite"
+boundary):**
+1. **No code change — document the alias path.** macOS: right-click
+   `START_HERE.command` → *Make Alias* → drag the alias to the Desktop.
+   Double-clicking a Finder **alias** runs the original *in place*, so the
+   anchor stays correct. Windows: right-click `START_HERE.bat` → *Send to →
+   Desktop (create shortcut)*; a `.lnk` keeps its "Start in" dir, so it works
+   (a copied `.bat` breaks the same way a copied `.command` does). Add both to
+   `SETUP_GUIDE.md`. **Lowest risk; probably sufficient.**
+2. **Make the launcher resolve symlinks** so a Desktop symlink works — a
+   portable `readlink` loop (macOS ships bash 3.2, no `realpath`). Then
+   `ln -s` to the Desktop is enough.
+3. **A "Create Desktop shortcut" helper** that writes a Desktop launcher
+   pointing at the absolute install path. More moving parts; only if (1)/(2)
+   aren't enough.
+
+**Recommendation:** start with (1) — it needs no script changes and sidesteps
+the boundary. Consider (2) only if users find aliases unintuitive.
+
+**Status:** raised 2026-05-31, not started.
+
 ---
 
 ## Git workflow
