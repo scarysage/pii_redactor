@@ -11,6 +11,40 @@ No network calls at runtime, ever.** See "Offline guarantee" below.
 
 ---
 
+## ▶ Next session — start here (planned 2026-05-31, end of session)
+
+Ordered by impact + dependency. Item numbers refer to "Open work" below.
+
+1. **Redeploy the current build on the test Mac, then re-test.** The Mac
+   used last session was running a **stale build** (that's why "day-to-day"
+   was redacted — see #7). Rebuild a fresh zip with `scripts/package.sh`
+   (picks up the latest SETUP_GUIDE), reinstall, and re-run the same
+   document. This fixes day-to-day, pulls in the whole security pass, and —
+   critically — **re-confirms whether the half-red styling and whole-name
+   column over-redaction (#8) are still real** before we spend time on them.
+   Don't debug those until after this step.
+2. **Lock down the leaked names (#8).** Confirm the in-session surname add
+   caught them; for anything that must never leak, bake the surname into
+   `firm_config.FIRM_NAMES` (permanent). If "X & Y Surname" conjunctions
+   still slip through, improve that path. Highest-stakes correctness issue.
+3. **Triage #8 styling/column bugs — only if step 1 shows they persist.**
+   Build a synthetic (fake-data) repro for the half-red placeholder, fix at
+   the run-styling level, add a regression test. Decide + make consistent the
+   column-wholesale-masking vs keep-first-names behavior.
+4. **Quick UX/handoff wins (batch):** #5 (exact Python 3.12.x as an up-front
+   prerequisite in SETUP_GUIDE; verify the "Add to PATH" detail) and #6
+   (surface the un-redact / Remove flow). Low effort, better non-tech UX.
+5. **Distribution gate: #3 Windows end-to-end test** (fresh zip →
+   `setup_once.bat` → `START_HERE.bat` on real/VM Windows). Optionally add
+   the **offline wheelhouse** so setup needs no internet. The true gate
+   before handing to anyone beyond the user; do it once behavior is settled
+   so you're testing a stable artifact.
+6. **Strategic / when commercializing (not blocking):** #4 per-company
+   branding, signed-installer delivery, and the app-store idea (#10).
+   Revisit when a 2nd client or a paid sale is real.
+
+---
+
 ## ✅ Resolved 2026-05-31: security audit + remediation
 
 A full security audit ran this session — report in `SECURITY_AUDIT.md`
@@ -770,7 +804,36 @@ boundary):**
 **Recommendation:** start with (1) — it needs no script changes and sidesteps
 the boundary. Consider (2) only if users find aliases unintuitive.
 
-**Status:** raised 2026-05-31, not started.
+**Status:** SETUP_GUIDE alias/shortcut tips added 2026-05-31 (option 1 done);
+options 2/3 only if needed.
+
+### 10. (Future / aspirational) Distribute via the Mac App Store / Microsoft Store
+
+**Idea:** ship as a proper store app — trust, discoverability, painless
+install, auto-updates. The polished end-state of the delivery ladder.
+
+**Reality check (architecture tension):** both stores sandbox apps heavily.
+This tool is a local **Python web server + browser** that spawns subprocesses
+and reads arbitrary user files — which fights the Mac App Store **App Sandbox**
+(restricted file access, no arbitrary subprocess, entitlement review) and the
+Microsoft Store **MSIX** sandbox. Getting a Streamlit-on-localhost app through
+either store's review is hard and may force a re-architecture (wrap it in a
+native shell — Tauri/Electron with a packaged Python runtime — or a native UI).
+
+**Pragmatic stepping stones (in order):**
+1. Direct **signed + notarized installer** — Apple Developer ID `.dmg`/`.pkg`
+   (notarized) + Windows Authenticode-signed installer. Gets ~all the trust
+   (no "unknown publisher" / Gatekeeper scare screens) and auto-update is
+   doable, WITHOUT the store sandbox. The realistic "feels like a real app"
+   target; also bundles Python so users never install it (ties to #5).
+2. Only if broad discoverability / store billing matters (selling to many
+   small firms) invest in the re-architecture for an actual store listing.
+
+**Invariant:** keep the offline guarantee throughout — a store app must still
+make zero runtime network calls; vendored model + local-only processing stay.
+
+**Status:** aspirational, raised 2026-05-31. Tie-in with #4 (per-tenant) and
+the delivery thinking.
 
 ---
 
